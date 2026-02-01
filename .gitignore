@@ -1,0 +1,38 @@
+# STALCRAFT Clan Bot - Git Ignore
+
+# Конфигурация с токеном
+config.json
+
+# База данных
+*.db
+data/cache.db
+
+# Логи
+*.log
+bot.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+.venv/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Excel временные файлы
+~$*.xlsx
+*.tmp

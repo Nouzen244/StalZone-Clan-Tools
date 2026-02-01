@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎮 STALCRAFT Clan Bot - Инструкция по установке</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter:wght@400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+        }
+        
+        code, .code {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        .step-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+        }
+        
+        .step-card:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(88, 101, 242, 0.5);
+            transform: translateY(-2px);
+        }
+        
+        .step-card.completed {
+            border-color: #22c55e;
+            background: rgba(34, 197, 94, 0.1);
+        }
+        
+        .discord-btn {
+            background: #5865F2;
+            transition: all 0.2s;
+        }
+        
+        .discord-btn:hover {
+            background: #4752C4;
+            transform: scale(1.02);
+        }
+        
+        .copy-btn {
+            transition: all 0.2s;
+        }
+        
+        .copy-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        .code-block {
+            background: #0d1117;
+            border: 1px solid #30363d;
+        }
+        
+        .glow {
+            box-shadow: 0 0 30px rgba(88, 101, 242, 0.3);
+        }
+        
+        .step-number {
+            background: linear-gradient(135deg, #5865F2, #7289da);
+            min-width: 40px;
+            height: 40px;
+        }
+        
+        .checklist-item {
+            transition: all 0.2s;
+        }
+        
+        .checklist-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+        
+        .progress-bar {
+            background: rgba(255, 255, 255, 0.1);
+        }
+        
+        .progress-fill {
+            background: linear-gradient(90deg, #5865F2, #22c55e);
+            transition: width 0.5s ease;
+        }
+
+        .tooltip {
+            visibility: hidden;
+            opacity: 0;
+            transition: all 0.2s;
+        }
+        
+        .has-tooltip:hover .tooltip {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .animate-pulse-slow {
+            animation: pulse 2s ease-in-out infinite;
+        }
+    </style>
+</head>
+<body class="text-white">
+    <!-- Header -->
+    <header class="py-6 px-4 border-b border-white/10">
+        <div class="max-w-4xl mx-auto flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <span class="text-4xl">☢️</span>
+                <div>
+                    <h1 class="text-2xl font-bold">STALCRAFT Clan Bot</h1>
+                    <p class="text-gray-400 text-sm">Инструкция по установке v2.0</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="text-sm text-gray-400">Прогресс:</span>
+                <div class="progress-bar w-32 h-2 rounded-full overflow-hidden">
+                    <div id="progressFill" class="progress-fill h-full rounded-full" style="width: 0%"></div>
+                </div>
+                <span id="progressText" class="text-sm font-mono text-green-400">0/6</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-4xl mx-auto py-8 px-4">
+        
+        <!-- Quick Overview -->
+        <div class="mb-8 p-6 rounded-2xl bg-gradient-to-r from-indigo-900/50 to-purple-900/50 border border-indigo-500/30 glow">
+            <h2 class="text-xl font-bold mb-3 flex items-center gap-2">
+                <span>⚡</span> Быстрый старт
+            </h2>
+            <p class="text-gray-300 mb-4">
+                Для запуска бота тебе понадобится выполнить <strong>6 шагов</strong>. 
+                Примерное время: <strong>10-15 минут</strong>.
+            </p>
+            <div class="flex flex-wrap gap-3">
+                <span class="px-3 py-1 bg-white/10 rounded-full text-sm">🐍 Python 3.10+</span>
+                <span class="px-3 py-1 bg-white/10 rounded-full text-sm">🤖 Discord аккаунт</span>
+                <span class="px-3 py-1 bg-white/10 rounded-full text-sm">💻 Терминал/CMD</span>
+            </div>
+        </div>
+
+        <!-- Steps -->
+        <div class="space-y-6">
+            
+            <!-- Step 1: Create Bot -->
+            <div class="step-card rounded-2xl p-6" data-step="1">
+                <div class="flex items-start gap-4">
+                    <div class="step-number rounded-full flex items-center justify-center text-lg font-bold shrink-0">1</div>
+                    <div class="flex-1">
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="text-xl font-bold">Создай Discord бота</h3>
+                            <label class="flex items-center gap-2 cursor-pointer checklist-item px-3 py-1 rounded-lg">
+                                <input type="checkbox" class="step-checkbox w-5 h-5 rounded accent-green-500" data-step="1">
+                                <span class="text-sm text-gray-400">Готово</span>
+                            </label>
+                        </div>
+                        
+                        <ol class="space-y-3 text-gray-300">
+                            <li class="flex items-start gap-2">
+                                <span class="text-indigo-400">1.</span>
+                                <span>Перейди на <a href="https://discord.com/developers/applications" target="_blank" class="text-indigo-400 hover:underline font-medium">Discord Developer Portal</a></span>
+                            </li>
+                            <li class="flex items-start gap-2">
+                                <span class="text-indigo-400">2.</span>
+                                <span>Нажми <strong>"New Application"</strong> → введи имя (например: STALCRAFT Clan Bot)</span>
+                            </li>
+                            <li class="flex items-start gap-2">
+                                <span class="text-indigo-400">3.</span>
+                                <span>Перейди в раздел <strong>"Bot"</strong> слева</span>
+                            </li>
+                            <li class="flex items-start gap-2">
+                                <span class="text-indigo-400">4.</span>
+                                <span>Нажми <strong>"Reset Token"</strong> и скопируй токен (сохрани его!)</span>
+                            </li>
+                        </ol>
+                        
+                        <div class="mt-4 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-xl">
+                            <p class="text-yellow-300 text-sm flex items-start gap-2">
+                                <span class="text-lg">⚠️</span>
+                                <span><strong>Важно!</strong> Токен — это пароль бота. Никому его не показывай и не публикуй на GitHub!</span>
+                            </p>
+                        </div>
+                        
+                        <a href="https://discord.com/developers/applications" target="_blank" 
+                           class="discord-btn mt-4 inline-flex items-center gap-2 px-5 py-2.5 rounded-lg font-medium">
+                            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/>
+                            </svg>
+                            Открыть Developer Portal
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 2: Enable Intents -->
+            <div class="step-card rounded-2xl p-6" data-step="2">
+                <div class="flex items-start gap-4">
+                    <div class="step-number rounded-full flex items-center justify-center text-lg font-bold shrink-0">2</div>
+                    <div class="flex-1">
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="text-xl font-bold">Включи Privileged Intents</h3>
+                            <label class="flex items-center gap-2 cursor-pointer checklist-item px-3 py-1 rounded-lg">
+                                <input type="checkbox" class="step-checkbox w-5 h-5 rounded accent-green-500" data-step="2">
+                                <span class="text-sm text-gray-400">Готово</span>
+                            </label>
+                        </div>
+                        
+                        <p class="text-gray-300 mb-4">В разделе <strong>"Bot"</strong> прокрути вниз до <strong>"Privileged Gateway Intents"</strong> и включи:</p>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div class="p-3 bg-green-500/10 border border-green-500/30 rounded-xl text-center">
+                                <div class="text-2xl mb-1">👥</div>
+                                <div class="font-medium text-green-300">SERVER MEMBERS</div>
+                                <div class="text-xs text-gray-400">Обязательно!</div>
+                            </div>
+                            <div class="p-3 bg-green-500/10 border border-green-500/30 rounded-xl text-center">
+                                <div class="text-2xl mb-1">💬</div>
+                                <div class="font-medium text-green-300">MESSAGE CONTENT</div>
+                                <div class="text-xs text-gray-400">Обязательно!</div>
+                            </div>
+                            <div class="p-3 bg-gray-500/10 border border-gray-500/30 rounded-xl text-center">
+                                <div class="text-2xl mb-1">🎭</div>
+                                <div class="font-medium text-gray-300">PRESENCE</div>
+                                <div class="text-xs text-gray-400">Опционально</div>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-4 p-4 bg-red-500/10 border border-red-500/30 rounded-xl">
+                            <p class="text-red-300 text-sm flex items-start gap-2">
+                                <span class="text-lg">🚨</span>
+                                <span>Без этих разрешений бот <strong>не увидит</strong> участников сервера и голосовые каналы!</span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 3: Invite Bot -->
+            <div class="step-card rounded-2xl p-6" data-step="3">
+                <div class="flex items-start gap-4">
+                    <div class="step-number rounded-full flex items-center justify-center text-lg font-bold shrink-0">3</div>
+                    <div class="flex-1">
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="text-xl font-bold">Пригласи бота на сервер</h3>
+                            <label class="flex items-center gap-2 cursor-pointer checklist-item px-3 py-1 rounded-lg">
+                                <input type="checkbox" class="step-checkbox w-5 h-5 rounded accent-green-500" data-step="3">
+                                <span class="text-sm text-gray-400">Готово</span>
+                            </label>
+                        </div>
+                        
+                        <ol class="space-y-3 text-gray-300">
+                            <li class="flex items-start gap-2">
+                                <span class="text-indigo-400">1.</span>
+                                <span>Перейди в раздел <strong>"OAuth2"</strong> → <strong>"URL Generator"</strong></span>
+                            </li>
+                            <li class="flex items-start gap-2">
+                                <span class="text-indigo-400">2.</span>
+                                <span>В <strong>SCOPES</strong> выбери: <code class="bg-white/10 px-2 py-0.5 rounded">bot</code> и <code class="bg-white/10 px-2 py-0.5 rounded">applications.commands</code></span>
+                            </li>
+                            <li class="flex items-start gap-2">
+                                <span class="text-indigo-400">3.</span>
+                                <span>В <strong>BOT PERMISSIONS</strong> выбери:</span>
+                            </li>
+                        </ol>
+                        
+                        <div class="mt-3 flex flex-wrap gap-2">
+                            <span class="px-2 py-1 bg-indigo-500/20 rounded text-sm">Administrator</span>
+                            <span class="text-gray-500">или отдельно:</span>
+                            <span class="px-2 py-1 bg-white/10 rounded text-sm">View Channels</span>
+                            <span class="px-2 py-1 bg-white/10 rounded text-sm">Send Messages</span>
+                            <span class="px-2 py-1 bg-white/10 rounded text-sm">Embed Links</span>
+                            <span class="px-2 py-1 bg-white/10 rounded text-sm">Read Message History</span>
+                            <span class="px-2 py-1 bg-white/10 rounded text-sm">Connect</span>
+                            <span class="px-2 py-1 bg-white/10 rounded text-sm">View Voice Channel</span>
+                        </div>
+                        
+                        <div class="mt-4 p-4 bg-white/5 border border-white/10 rounded-xl">
+                            <p class="text-gray-300 text-sm mb-2">4. Скопируй сгенерированный URL и открой в браузере:</p>
+                            <div class="flex items-center gap-2">
+                                <code class="flex-1 bg-black/30 px-3 py-2 rounded text-sm text-indigo-300 truncate">
+                                    https://discord.com/oauth2/authorize?client_id=YOUR_ID&permissions=...
+                                </code>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 4: Install Python & Dependencies -->
+            <div class="step-card rounded-2xl p-6" data-step="4">
+                <div class="flex items-start gap-4">
+                    <div class="step-number rounded-full flex items-center justify-center text-lg font-bold shrink-0">4</div>
+                    <div class="flex-1">
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="text-xl font-bold">Установи Python и зависимости</h3>
+                            <label class="flex items-center gap-2 cursor-pointer checklist-item px-3 py-1 rounded-lg">
+                                <input type="checkbox" class="step-checkbox w-5 h-5 rounded accent-green-500" data-step="4">
+                                <span class="text-sm text-gray-400">Готово</span>
+                            </label>
+                        </div>
+                        
+                        <div class="space-y-4">
+                            <!-- Check Python -->
+                            <div>
+                                <p class="text-gray-300 mb-2">Проверь, установлен ли Python:</p>
+                                <div class="code-block rounded-lg p-3 flex items-center justify-between">
+                                    <code class="text-green-400">python --version</code>
+                                    <button onclick="copyCode('python --version')" class="copy-btn p-2 rounded hover:bg-white/10">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                                <p class="text-gray-500 text-sm mt-1">Нужна версия 3.10 или выше. <a href="https://python.org/downloads" target="_blank" class="text-indigo-400 hover:underline">Скачать Python</a></p>
+                            </div>
+                            
+                            <!-- Create folder -->
+                            <div>
+                                <p class="text-gray-300 mb-2">Создай папку проекта и перейди в неё:</p>
+                                <div class="code-block rounded-lg p-3 flex items-center justify-between">
+                                    <code class="text-green-400">mkdir clanbot && cd clanbot</code>
+                                    <button onclick="copyCode('mkdir clanbot && cd clanbot')" class="copy-btn p-2 rounded hover:bg-white/10">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- Install deps -->
+                            <div>
+                                <p class="text-gray-300 mb-2">Установи зависимости:</p>
+                                <div class="code-block rounded-lg p-3 flex items-center justify-between">
+                                    <code class="text-green-400">pip install discord.py openpyxl aiosqlite pytz python-dateutil aiohttp</code>
+                                    <button onclick="copyCode('pip install discord.py openpyxl aiosqlite pytz python-dateutil aiohttp')" class="copy-btn p-2 rounded hover:bg-white/10">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 5: Configure -->
+            <div class="step-card rounded-2xl p-6" data-step="5">
+                <div class="flex items-start gap-4">
+                    <div class="step-number rounded-full flex items-center justify-center text-lg font-bold shrink-0">5</div>
+                    <div class="flex-1">
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="text-xl font-bold">Настрой config.json</h3>
+                            <label class="flex items-center gap-2 cursor-pointer checklist-item px-3 py-1 rounded-lg">
+                                <input type="checkbox" class="step-checkbox w-5 h-5 rounded accent-green-500" data-step="5">
+                                <span class="text-sm text-gray-400">Готово</span>
+                            </label>
+                        </div>
+                        
+                        <p class="text-gray-300 mb-4">Открой файл <code class="bg-white/10 px-2 py-0.5 rounded">config.json</code> и вставь свой токен:</p>
+                        
+                        <div class="code-block rounded-lg p-4 relative">
+                            <button onclick="copyConfig()" class="copy-btn absolute top-2 right-2 p-2 rounded hover:bg-white/10">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                                </svg>
+                            </button>
+<pre class="text-sm"><code class="text-gray-300">{
+    <span class="text-yellow-300">"TOKEN"</span>: <span class="text-green-300">"<span id="tokenPlaceholder" class="animate-pulse-slow">ВСТАВЬ_СЮДА_СВОЙ_ТОКЕН</span>"</span>,
+    <span class="text-yellow-300">"PREFIX"</span>: <span class="text-green-300">"!"</span>,
+    <span class="text-yellow-300">"LOG_LEVEL"</span>: <span class="text-green-300">"INFO"</span>,
+    <span class="text-yellow-300">"DB_PATH"</span>: <span class="text-green-300">"data/bot_database.db"</span>,
+    <span class="text-yellow-300">"EXCEL_PATH"</span>: <span class="text-green-300">"data/clan_attendance.xlsx"</span>,
+    <span class="text-yellow-300">"TIMEZONE"</span>: <span class="text-green-300">"Europe/Moscow"</span>
+}</code></pre>
+                        </div>
+                        
+                        <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="p-4 bg-white/5 rounded-xl">
+                                <h4 class="font-medium mb-2 flex items-center gap-2">
+                                    <span>🔑</span> Где взять токен?
+                                </h4>
+                                <p class="text-gray-400 text-sm">Developer Portal → твоё приложение → Bot → Reset Token</p>
+                            </div>
+                            <div class="p-4 bg-white/5 rounded-xl">
+                                <h4 class="font-medium mb-2 flex items-center gap-2">
+                                    <span>🌍</span> Временные зоны
+                                </h4>
+                                <p class="text-gray-400 text-sm">Europe/Moscow, Europe/Kiev, Asia/Almaty и т.д.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 6: Run -->
+            <div class="step-card rounded-2xl p-6" data-step="6">
+                <div class="flex items-start gap-4">
+                    <div class="step-number rounded-full flex items-center justify-center text-lg font-bold shrink-0">6</div>
+                    <div class="flex-1">
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="text-xl font-bold">Запусти бота! 🚀</h3>
+                            <label class="flex items-center gap-2 cursor-pointer checklist-item px-3 py-1 rounded-lg">
+                                <input type="checkbox" class="step-checkbox w-5 h-5 rounded accent-green-500" data-step="6">
+                                <span class="text-sm text-gray-400">Готово</span>
+                            </label>
+                        </div>
+                        
+                        <div class="code-block rounded-lg p-3 flex items-center justify-between mb-4">
+                            <code class="text-green-400">python main.py</code>
+                            <button onclick="copyCode('python main.py')" class="copy-btn p-2 rounded hover:bg-white/10">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                                </svg>
+                            </button>
+                        </div>
+                        
+                        <p class="text-gray-300 mb-4">Если всё правильно, увидишь:</p>
+                        
+                        <div class="code-block rounded-lg p-4">
+<pre class="text-sm text-gray-300">2024-01-15 20:00:00 | INFO     | ClanBot | ==================================================
+2024-01-15 20:00:00 | INFO     | ClanBot | 🎮 Бот запущен: STALCRAFT Clan Bot#1234 (123456789)
+2024-01-15 20:00:00 | INFO     | ClanBot | 📡 Подключён к 1 серверам
+2024-01-15 20:00:00 | INFO     | ClanBot | ==================================================
+2024-01-15 20:00:00 | INFO     | ClanBot | ✅ Синхронизировано 0 slash-команд</pre>
+                        </div>
+                        
+                        <div class="mt-6 p-4 bg-green-500/10 border border-green-500/30 rounded-xl">
+                            <h4 class="font-bold text-green-300 mb-2 flex items-center gap-2">
+                                <span>🎉</span> Поздравляю! Бот запущен!
+                            </h4>
+                            <p class="text-gray-300">Теперь напиши на сервере:</p>
+                            <div class="mt-2 flex flex-wrap gap-2">
+                                <code class="bg-black/30 px-3 py-1 rounded">!setup</code>
+                                <span class="text-gray-500">— мастер настройки</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- After Setup Commands -->
+        <div class="mt-10 p-6 rounded-2xl bg-gradient-to-r from-green-900/30 to-emerald-900/30 border border-green-500/30">
+            <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
+                <span>⚙️</span> После запуска — настрой на сервере
+            </h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="space-y-2">
+                    <h4 class="font-medium text-green-300">1. Установи голосовой канал:</h4>
+                    <code class="block bg-black/30 px-3 py-2 rounded text-sm">!setvc #рейд-войс</code>
+                </div>
+                <div class="space-y-2">
+                    <h4 class="font-medium text-green-300">2. Настрой роли:</h4>
+                    <code class="block bg-black/30 px-3 py-2 rounded text-sm">!setrole leader @Глава</code>
+                    <code class="block bg-black/30 px-3 py-2 rounded text-sm">!setrole officer @Офицер</code>
+                    <code class="block bg-black/30 px-3 py-2 rounded text-sm">!setrole member @Клан</code>
+                </div>
+                <div class="space-y-2">
+                    <h4 class="font-medium text-green-300">3. Добавь расписание:</h4>
+                    <code class="block bg-black/30 px-3 py-2 rounded text-sm">!schedule add 20:00-21:30 Вечерний сбор</code>
+                </div>
+                <div class="space-y-2">
+                    <h4 class="font-medium text-green-300">4. Проверь статус:</h4>
+                    <code class="block bg-black/30 px-3 py-2 rounded text-sm">!status</code>
+                </div>
+            </div>
+        </div>
+
+        <!-- Troubleshooting -->
+        <div class="mt-8 p-6 rounded-2xl bg-white/5 border border-white/10">
+            <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
+                <span>🔧</span> Частые проблемы
+            </h2>
+            
+            <div class="space-y-4">
+                <details class="group">
+                    <summary class="cursor-pointer p-3 bg-white/5 rounded-lg hover:bg-white/10 transition flex items-center justify-between">
+                        <span class="font-medium">❌ "Неверный токен" при запуске</span>
+                        <svg class="w-5 h-5 transform group-open:rotate-180 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                        </svg>
+                    </summary>
+                    <div class="mt-2 p-4 text-gray-300 text-sm">
+                        <p>1. Убедись, что скопировал токен полностью (без пробелов)</p>
+                        <p>2. Сгенерируй новый токен через "Reset Token"</p>
+                        <p>3. Проверь кавычки в JSON — должны быть обычные ""</p>
+                    </div>
+                </details>
+                
+                <details class="group">
+                    <summary class="cursor-pointer p-3 bg-white/5 rounded-lg hover:bg-white/10 transition flex items-center justify-between">
+                        <span class="font-medium">❌ Бот не видит участников/каналы</span>
+                        <svg class="w-5 h-5 transform group-open:rotate-180 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                        </svg>
+                    </summary>
+                    <div class="mt-2 p-4 text-gray-300 text-sm">
+                        <p>Включи Privileged Intents (Шаг 2):</p>
+                        <p>Developer Portal → Bot → SERVER MEMBERS INTENT ✅</p>
+                    </div>
+                </details>
+                
+                <details class="group">
+                    <summary class="cursor-pointer p-3 bg-white/5 rounded-lg hover:bg-white/10 transition flex items-center justify-between">
+                        <span class="font-medium">❌ ModuleNotFoundError: No module named 'discord'</span>
+                        <svg class="w-5 h-5 transform group-open:rotate-180 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                        </svg>
+                    </summary>
+                    <div class="mt-2 p-4 text-gray-300 text-sm">
+                        <p>Установи зависимости:</p>
+                        <code class="block bg-black/30 px-3 py-2 rounded mt-2">pip install discord.py</code>
+                    </div>
+                </details>
+                
+                <details class="group">
+                    <summary class="cursor-pointer p-3 bg-white/5 rounded-lg hover:bg-white/10 transition flex items-center justify-between">
+                        <span class="font-medium">❌ Бот не отвечает на команды</span>
+                        <svg class="w-5 h-5 transform group-open:rotate-180 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                        </svg>
+                    </summary>
+                    <div class="mt-2 p-4 text-gray-300 text-sm">
+                        <p>1. Проверь префикс (по умолчанию <code>!</code>)</p>
+                        <p>2. Включи MESSAGE CONTENT INTENT</p>
+                        <p>3. У бота есть права видеть канал?</p>
+                    </div>
+                </details>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="py-6 px-4 border-t border-white/10 mt-10">
+        <div class="max-w-4xl mx-auto text-center text-gray-500 text-sm">
+            <p>STALCRAFT Clan Bot v2.0 ☢️ Сделано с 💜</p>
+        </div>
+    </footer>
+
+    <!-- Toast -->
+    <div id="toast" class="fixed bottom-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg transform translate-y-20 opacity-0 transition-all duration-300">
+        ✓ Скопировано!
+    </div>
+
+    <script>
+        // Progress tracking
+        function updateProgress() {
+            const checkboxes = document.querySelectorAll('.step-checkbox');
+            const checked = document.querySelectorAll('.step-checkbox:checked').length;
+            const total = checkboxes.length;
+            
+            const percentage = (checked / total) * 100;
+            document.getElementById('progressFill').style.width = percentage + '%';
+            document.getElementById('progressText').textContent = `${checked}/${total}`;
+            
+            // Update step cards
+            checkboxes.forEach(cb => {
+                const step = cb.dataset.step;
+                const card = document.querySelector(`.step-card[data-step="${step}"]`);
+                if (cb.checked) {
+                    card.classList.add('completed');
+                } else {
+                    card.classList.remove('completed');
+                }
+            });
+            
+            // Save to localStorage
+            const state = {};
+            checkboxes.forEach(cb => {
+                state[cb.dataset.step] = cb.checked;
+            });
+            localStorage.setItem('clanbot-setup-progress', JSON.stringify(state));
+        }
+        
+        // Load saved progress
+        function loadProgress() {
+            const saved = localStorage.getItem('clanbot-setup-progress');
+            if (saved) {
+                const state = JSON.parse(saved);
+                Object.entries(state).forEach(([step, checked]) => {
+                    const cb = document.querySelector(`.step-checkbox[data-step="${step}"]`);
+                    if (cb) cb.checked = checked;
+                });
+                updateProgress();
+            }
+        }
+        
+        // Copy to clipboard
+        function copyCode(text) {
+            navigator.clipboard.writeText(text);
+            showToast();
+        }
+        
+        function copyConfig() {
+            const config = `{
+    "TOKEN": "YOUR_BOT_TOKEN_HERE",
+    "PREFIX": "!",
+    "LOG_LEVEL": "INFO",
+    "DB_PATH": "data/bot_database.db",
+    "EXCEL_PATH": "data/clan_attendance.xlsx",
+    "TIMEZONE": "Europe/Moscow"
+}`;
+            navigator.clipboard.writeText(config);
+            showToast();
+        }
+        
+        function showToast() {
+            const toast = document.getElementById('toast');
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 2000);
+        }
+        
+        // Event listeners
+        document.querySelectorAll('.step-checkbox').forEach(cb => {
+            cb.addEventListener('change', updateProgress);
+        });
+        
+        // Init
+        loadProgress();
+    </script>
+</body>
+</html>
