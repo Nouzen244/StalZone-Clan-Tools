@@ -1,5 +1,3 @@
-IN DEVELOPMENT
-
 # 🎮 StalZone Clan Bot
 
 > Бот для клана в игре **StalZone** (бывший STALCRAFT).
