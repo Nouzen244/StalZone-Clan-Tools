@@ -10,6 +10,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict
 from pathlib import Path
+from ranks import RANK_ORDER, RANK_NAMES, RANK_ICONS
 
 try:
     from openpyxl import Workbook, load_workbook
@@ -156,16 +157,6 @@ class KVStep1View(discord.ui.View):
         embed.add_field(name="👤 Изменил", value=interaction.user.mention, inline=True)
         
         await interaction.response.edit_message(embed=embed, view=None)
-        
-        # Лог
-        log_embed = discord.Embed(
-            title="📝 Изменение посещаемости КВ",
-            description=f"**{self.member.display_name}** → ✅ Присутствовал",
-            color=discord.Color.blue()
-        )
-        log_embed.add_field(name="Изменил", value=interaction.user.mention)
-        log_embed.add_field(name="Дата КВ", value=format_date(date_str=self.date))
-        await self.bot.send_log(interaction.guild, log_embed)
 
 
 class KVStep2View(discord.ui.View):
@@ -272,21 +263,74 @@ class KVStep3View(discord.ui.View):
         await interaction.response.edit_message(embed=embed, view=None)
 
 
+class SundayChoiceButton(discord.ui.Button):
+    """Кнопка выбора воскресного события (Потасовка / Захват базы)"""
+
+    EMOJIS = {'Потасовка': '🥊', 'Захват базы': '🏴'}
+
+    def __init__(self, bot, date: str, guild_id: int, event_name: str, is_live: bool, current_choice):
+        chosen = (current_choice == event_name)
+        super().__init__(
+            label=event_name,
+            style=discord.ButtonStyle.success if chosen else discord.ButtonStyle.secondary,
+            emoji="✅" if chosen else self.EMOJIS.get(event_name, "⚔️"),
+            row=2
+        )
+        self.bot = bot
+        self.date = date
+        self.guild_id = guild_id
+        self.event_name = event_name
+        self.is_live = is_live
+
+    async def callback(self, interaction: discord.Interaction):
+        # Выбирать может только офицер+ или админ
+        is_admin = interaction.user.guild_permissions.administrator
+        if not is_admin and not await self.bot.has_permission(interaction.user, 'officer'):
+            await interaction.response.send_message(
+                "🚫 Только офицеры могут выбирать воскресное событие!", ephemeral=True
+            )
+            return
+
+        await self.bot.set_sunday_choice(self.guild_id, self.date, self.event_name, interaction.user.id)
+
+        # Подсвечиваем выбранную кнопку
+        for item in self.view.children:
+            if isinstance(item, SundayChoiceButton):
+                chosen = item.event_name == self.event_name
+                item.style = discord.ButtonStyle.success if chosen else discord.ButtonStyle.secondary
+                item.emoji = "✅" if chosen else SundayChoiceButton.EMOJIS.get(item.event_name, "⚔️")
+
+        # Обновляем заголовок отчёта
+        embed = interaction.message.embeds[0] if interaction.message.embeds else None
+        if embed:
+            embed.title = (f"⚔️ КВ: {self.event_name} (LIVE)"
+                           if self.is_live else f"⚔️ Отчёт КВ: {self.event_name}")
+
+        await interaction.response.edit_message(embed=embed, view=self.view)
+
+
 class KVReportView(discord.ui.View):
     """View для отчёта КВ с кнопками редактирования"""
-    
-    def __init__(self, bot, absent_members: List, date: str, guild_id: int, is_live: bool = False):
+
+    def __init__(self, bot, absent_members: List, date: str, guild_id: int, is_live: bool = False,
+                 sunday: bool = False, sunday_choices: List = None):
         super().__init__(timeout=600)
         self.bot = bot
         self.absent = absent_members
         self.date = date
         self.guild_id = guild_id
         self.is_live = is_live
-        
+
         # Добавляем Select Menu если есть отсутствующие
         if absent_members:
             self.add_item(KVMemberSelect(bot, absent_members, date, guild_id))
-    
+
+        # Кнопки выбора воскресного события (Потасовка / Захват базы)
+        if sunday and sunday_choices:
+            current_choice = bot.sunday_choices.get(f"{guild_id}:{date}")
+            for event_name in sunday_choices:
+                self.add_item(SundayChoiceButton(bot, date, guild_id, event_name, is_live, current_choice))
+
     @discord.ui.button(label="🔄 Обновить", style=discord.ButtonStyle.secondary, row=1)
     async def refresh(self, interaction: discord.Interaction, button):
         await interaction.response.defer()
@@ -425,16 +469,12 @@ class KVDirectEditView(discord.ui.View):
 # ============================================
 
 class AttendanceCog(commands.Cog, name="Посещаемость"):
-    """Команды КВ, собраний и отчётности"""
-    
+    """Команды КВ и отчётности"""
+
     def __init__(self, bot):
         self.bot = bot
-        self.meeting_reminder.start()
         logger.info("📊 AttendanceCog v3.2 загружен")
-    
-    def cog_unload(self):
-        self.meeting_reminder.cancel()
-    
+
     # ========================================
     # КВ - ТОЛЬКО ПО РАСПИСАНИЮ
     # ========================================
@@ -469,27 +509,25 @@ class AttendanceCog(commands.Cog, name="Посещаемость"):
             current_kv = self.bot.get_current_kv_schedule(guild_id)
             
             if not current_kv:
-                # Проверяем есть ли вообще расписание
-                schedules = self.bot.guild_schedules.get(guild_id, [])
-                if not schedules:
-                    await ctx.send("❌ Расписание КВ не настроено!\n`!schedule add 20:00-21:30 КВ`")
-                else:
-                    # Показываем когда следующее КВ
-                    day_names = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
-                    next_kv = "Не определено"
-                    
-                    for sched in schedules:
-                        days = ', '.join([day_names[d] for d in sched['days_of_week']])
-                        next_kv = f"{sched['name']} в {sched['start_time']} ({days})"
+                # Расписание фиксированное — показываем сегодняшнее событие
+                day_names = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
+                today_weekday = now.weekday()
+                today_str = date_for_db(now)
+                today_event = None
+
+                for sched in self.bot.get_guild_schedules(guild_id):
+                    if today_weekday in sched['days_of_week']:
+                        name = self.bot.get_event_name(guild_id, today_str, sched)
+                        today_event = f"**{name}** в {sched['start_time']}-{sched['end_time']}"
                         break
-                    
-                    embed = discord.Embed(
-                        title="⚠️ Сейчас нет активного КВ",
-                        description=f"**Следующее КВ:** {next_kv}\n\n"
-                                   f"Используйте `!kv DD-MM-YYYY` для просмотра отчёта за дату",
-                        color=discord.Color.orange()
-                    )
-                    await ctx.send(embed=embed)
+
+                embed = discord.Embed(
+                    title="⚠️ Сейчас нет активного КВ",
+                    description=(f"**Сегодня ({day_names[today_weekday]}):** {today_event}\n\n" if today_event else "")
+                               + "Используйте `!kv DD-MM-YYYY` для просмотра отчёта за дату",
+                    color=discord.Color.orange()
+                )
+                await ctx.send(embed=embed)
                 return
             
             # КВ сейчас идёт - показываем live статус
@@ -541,10 +579,7 @@ class AttendanceCog(commands.Cog, name="Посещаемость"):
         present = []
         absent = []
         
-        role_icons = {
-            'leader': '👑', 'officer': '⚔️', 'special': '⭐',
-            'member': '🎖️', 'recruit': '🆕'
-        }
+        role_icons = RANK_ICONS
         
         for member in all_members:
             role_type = self.bot.get_member_role_type(member)
@@ -567,8 +602,9 @@ class AttendanceCog(commands.Cog, name="Посещаемость"):
         absent.sort(key=lambda x: x[0].display_name.lower())
         
         # Embed
+        event_name = self.bot.get_event_name(guild_id, date_str, schedule)
         embed = discord.Embed(
-            title=f"⚔️ КВ: {schedule['name']} (LIVE)",
+            title=f"⚔️ КВ: {event_name} (LIVE)",
             description=f"🕐 **Время:** {schedule['start_time']} - {schedule['end_time']}\n"
                        f"🎤 **Канал:** {kv_vc.mention}",
             color=discord.Color.red(),
@@ -624,8 +660,10 @@ class AttendanceCog(commands.Cog, name="Посещаемость"):
         
         # View с кнопками
         absent_data = [(m, {}, rt) for m, _, rt in absent]
-        view = KVReportView(self.bot, absent_data, date_str, guild_id, is_live=True)
-        
+        sunday = bool(schedule.get('choices'))
+        view = KVReportView(self.bot, absent_data, date_str, guild_id, is_live=True,
+                            sunday=sunday, sunday_choices=schedule.get('choices'))
+
         await ctx.send(embed=embed, view=view)
     
     async def _show_kv_report(self, ctx, target_date: datetime, kv_vc: discord.VoiceChannel):
@@ -635,7 +673,7 @@ class AttendanceCog(commands.Cog, name="Посещаемость"):
         date_str = date_for_db(target_date)
         
         # Проверяем было ли КВ в эту дату
-        schedules = self.bot.guild_schedules.get(guild_id, [])
+        schedules = self.bot.get_guild_schedules(guild_id)
         day_of_week = target_date.weekday()
         
         matching_schedule = None
@@ -713,17 +751,14 @@ class AttendanceCog(commands.Cog, name="Посещаемость"):
         present = []
         absent = []
         
-        role_icons = {
-            'leader': '👑', 'officer': '⚔️', 'special': '⭐',
-            'member': '🎖️', 'recruit': '🆕'
-        }
+        role_icons = RANK_ICONS
         
         for member in guild.members:
             if member.bot:
                 continue
             
             data = attendance_data.get(member.id, {})
-            role_type = data.get('role_type') or self.bot.get_member_role_type(member)
+            role_type = self.bot.get_member_role_type(member)
             role_icon = role_icons.get(role_type, '')
             
             if data.get('present'):
@@ -737,8 +772,9 @@ class AttendanceCog(commands.Cog, name="Посещаемость"):
         absent.sort(key=lambda x: x[0].display_name.lower())
         
         # Embed
+        event_name = self.bot.get_event_name(guild_id, date_str, matching_schedule)
         embed = discord.Embed(
-            title=f"⚔️ Отчёт КВ: {matching_schedule['name']}",
+            title=f"⚔️ Отчёт КВ: {event_name}",
             description=f"📅 **Дата:** {format_date(target_date)}\n"
                        f"🕐 **Время:** {kv_time}\n"
                        f"🎤 **Канал:** {kv_vc.mention}",
@@ -803,8 +839,10 @@ class AttendanceCog(commands.Cog, name="Посещаемость"):
         embed.set_footer(text=f"Запросил: {ctx.author.display_name}")
         
         # View с редактированием
-        view = KVReportView(self.bot, absent, date_str, guild_id, is_live=False)
-        
+        sunday = bool(matching_schedule.get('choices'))
+        view = KVReportView(self.bot, absent, date_str, guild_id, is_live=False,
+                            sunday=sunday, sunday_choices=matching_schedule.get('choices'))
+
         await ctx.send(embed=embed, view=view)
     
     # ========================================
@@ -947,25 +985,7 @@ class AttendanceCog(commands.Cog, name="Посещаемость"):
             WHERE guild_id = ? AND user_id = ?
         ''', (guild_id, target.id)) as cursor:
             kv_stats = await cursor.fetchone()
-        
-        # Собрания
-        async with self.bot.db.execute('''
-            SELECT 
-                COUNT(*) as total,
-                SUM(CASE WHEN present = 1 THEN 1 ELSE 0 END) as present
-            FROM meeting_attendance
-            WHERE guild_id = ? AND user_id = ?
-        ''', (guild_id, target.id)) as cursor:
-            meeting_stats = await cursor.fetchone()
-        
-        # Активности (рейды)
-        async with self.bot.db.execute('''
-            SELECT COUNT(*), SUM(duration_seconds)
-            FROM raid_participants
-            WHERE user_id = ?
-        ''', (target.id,)) as cursor:
-            raid_stats = await cursor.fetchone()
-        
+
         # Голосовые сессии
         async with self.bot.db.execute('''
             SELECT COUNT(*), SUM(duration_seconds)
@@ -976,8 +996,8 @@ class AttendanceCog(commands.Cog, name="Посещаемость"):
         
         # Роль
         role_type = self.bot.get_member_role_type(target)
-        role_icons = {'leader': '👑', 'officer': '⚔️', 'special': '⭐', 'member': '🎖️', 'recruit': '🆕'}
-        role_names = {'leader': 'Глава', 'officer': 'Офицер', 'special': 'Особая', 'member': 'Рядовой', 'recruit': 'Рекрут'}
+        role_icons = RANK_ICONS
+        role_names = RANK_NAMES
         
         embed = discord.Embed(
             title=f"📊 Статистика: {target.display_name}",
@@ -1015,29 +1035,7 @@ class AttendanceCog(commands.Cog, name="Посещаемость"):
             embed.add_field(name="📈 КВ прогресс", value=f"`[{bar}]` {pct:.0f}%", inline=True)
         else:
             embed.add_field(name="⚔️ КВ", value="Нет данных", inline=True)
-        
-        # Собрания
-        if meeting_stats and meeting_stats[0] > 0:
-            total, present = meeting_stats
-            present = present or 0
-            pct = (present / total * 100) if total > 0 else 0
-            embed.add_field(
-                name="📋 Собрания",
-                value=f"Посещено: **{present}/{total}** ({pct:.0f}%)",
-                inline=True
-            )
-        
-        # Активности
-        if raid_stats and raid_stats[0] > 0:
-            count, total_time = raid_stats
-            total_time = total_time or 0
-            embed.add_field(
-                name="🎯 Активности",
-                value=f"Участий: **{count}**\n"
-                      f"Время: **{format_duration(total_time)}**",
-                inline=True
-            )
-        
+
         # Голосовые
         if voice_stats and voice_stats[0] > 0:
             sessions, total_time = voice_stats
@@ -1054,553 +1052,361 @@ class AttendanceCog(commands.Cog, name="Посещаемость"):
         await ctx.send(embed=embed)
     
     # ========================================
-    # СОБРАНИЯ
-    # ========================================
-    
-    @commands.group(name='meeting', aliases=['собрание'], invoke_without_command=True)
-    @officer_or_higher()
-    async def meeting(self, ctx: commands.Context):
-        """Управление собраниями"""
-        await ctx.send_help(ctx.command)
-    
-    @meeting.command(name='start', aliases=['начать'])
-    @officer_or_higher()
-    async def meeting_start(self, ctx: commands.Context):
-        """Начать собрание (зайдите в VC)"""
-        guild_id = ctx.guild.id
-        
-        if guild_id in self.bot.active_meetings:
-            await ctx.send("⚠️ Собрание уже идёт! `!meeting end` для завершения")
-            return
-        
-        if not ctx.author.voice or not ctx.author.voice.channel:
-            await ctx.send("❌ Зайдите в голосовой канал!")
-            return
-        
-        vc = ctx.author.voice.channel
-        now = datetime.now(self.bot.timezone)
-        
-        # Создаём запись
-        cursor = await self.bot.db.execute('''
-            INSERT INTO meetings (guild_id, channel_id, channel_name, start_time, created_by, status)
-            VALUES (?, ?, ?, ?, ?, 'active')
-        ''', (guild_id, vc.id, vc.name, now.isoformat(), ctx.author.id))
-        await self.bot.db.commit()
-        
-        meeting_id = cursor.lastrowid
-        
-        # Кэш
-        self.bot.active_meetings[guild_id] = {
-            'id': meeting_id,
-            'channel_id': vc.id,
-            'start_time': now
-        }
-        
-        # Добавляем ВСЕХ участников сервера
-        for member in ctx.guild.members:
-            if member.bot:
-                continue
-            
-            role_type = self.bot.get_member_role_type(member)
-            is_present = member in vc.members
-            
-            await self.bot.db.execute('''
-                INSERT INTO meeting_attendance 
-                (meeting_id, guild_id, user_id, discord_name, role_type, present, join_time)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            ''', (
-                meeting_id, guild_id, member.id, member.display_name, role_type,
-                1 if is_present else 0,
-                now.isoformat() if is_present else None
-            ))
-        
-        await self.bot.db.commit()
-        
-        embed = discord.Embed(
-            title="📋 Собрание началось!",
-            description=f"**Канал:** {vc.mention}\n"
-                       f"**Участников:** {len([m for m in vc.members if not m.bot])}",
-            color=discord.Color.blue(),
-            timestamp=now
-        )
-        embed.set_footer(text="!meeting end — завершить")
-        
-        await ctx.send(embed=embed)
-    
-    @meeting.command(name='end', aliases=['stop', 'завершить'])
-    @officer_or_higher()
-    async def meeting_end(self, ctx: commands.Context):
-        """Завершить собрание"""
-        guild_id = ctx.guild.id
-        
-        if guild_id not in self.bot.active_meetings:
-            await ctx.send("❌ Нет активного собрания!")
-            return
-        
-        meeting = self.bot.active_meetings.pop(guild_id)
-        meeting_id = meeting['id']
-        now = datetime.now(self.bot.timezone)
-        
-        # Завершаем
-        await self.bot.db.execute('''
-            UPDATE meetings SET end_time = ?, status = 'completed'
-            WHERE id = ?
-        ''', (now.isoformat(), meeting_id))
-        await self.bot.db.commit()
-        
-        # Получаем участников
-        async with self.bot.db.execute('''
-            SELECT discord_name, role_type, present, duration_seconds
-            FROM meeting_attendance
-            WHERE meeting_id = ?
-            ORDER BY 
-                CASE role_type 
-                    WHEN 'leader' THEN 1 
-                    WHEN 'officer' THEN 2 
-                    WHEN 'special' THEN 3 
-                    WHEN 'member' THEN 4 
-                    WHEN 'recruit' THEN 5 
-                END,
-                discord_name
-        ''', (meeting_id,)) as cursor:
-            participants = await cursor.fetchall()
-        
-        # Формируем отчёт
-        role_icons = {'leader': '👑', 'officer': '⚔️', 'special': '⭐', 'member': '🎖️', 'recruit': '🆕'}
-        
-        duration = (now - meeting['start_time']).total_seconds()
-        
-        embed = discord.Embed(
-            title="📋 Собрание завершено!",
-            description=f"**Длительность:** {format_duration(int(duration))}",
-            color=discord.Color.green(),
-            timestamp=now
-        )
-        
-        present_list = []
-        absent_list = []
-        
-        for name, role_type, present, dur in participants:
-            icon = role_icons.get(role_type, '')
-            if present:
-                present_list.append(f"✅{icon} {name}")
-            else:
-                absent_list.append(f"❌{icon} {name}")
-        
-        if present_list:
-            embed.add_field(
-                name=f"✅ Присутствовали ({len(present_list)})",
-                value="\n".join(present_list[:15]) + (f"\n... и ещё {len(present_list)-15}" if len(present_list) > 15 else ""),
-                inline=True
-            )
-        
-        if absent_list:
-            embed.add_field(
-                name=f"❌ Отсутствовали ({len(absent_list)})",
-                value="\n".join(absent_list[:15]) + (f"\n... и ещё {len(absent_list)-15}" if len(absent_list) > 15 else ""),
-                inline=True
-            )
-        
-        total = len(participants)
-        present_count = len(present_list)
-        pct = (present_count / total * 100) if total > 0 else 0
-        
-        embed.add_field(
-            name="📊 Итого",
-            value=f"**{present_count}/{total}** ({pct:.0f}%)",
-            inline=False
-        )
-        
-        await ctx.send(embed=embed)
-    
-    @meeting.command(name='plan', aliases=['запланировать'])
-    @officer_or_higher()
-    async def meeting_plan(self, ctx: commands.Context, time: str, date: str, *, name: str = "Собрание"):
-        """Запланировать собрание"""
-        try:
-            datetime.strptime(time, '%H:%M')
-        except ValueError:
-            await ctx.send("❌ Неверный формат времени! Используйте HH:MM")
-            return
-        
-        target_date = parse_date(date)
-        if not target_date:
-            await ctx.send("❌ Неверный формат даты!")
-            return
-        
-        date_str = date_for_db(target_date)
-        
-        cursor = await self.bot.db.execute('''
-            INSERT INTO meetings (guild_id, channel_name, start_time, created_by, status)
-            VALUES (?, ?, ?, ?, 'planned')
-        ''', (ctx.guild.id, name, f"{date_str}T{time}:00", ctx.author.id))
-        await self.bot.db.commit()
-        
-        embed = discord.Embed(
-            title="📋 Собрание запланировано!",
-            color=discord.Color.blue()
-        )
-        embed.add_field(name="📋 Название", value=name, inline=True)
-        embed.add_field(name="📅 Дата", value=format_date(target_date), inline=True)
-        embed.add_field(name="🕐 Время", value=time, inline=True)
-        embed.set_footer(text=f"ID: {cursor.lastrowid}")
-        
-        await ctx.send(embed=embed)
-    
-    @meeting.command(name='list', aliases=['список'])
-    async def meeting_list(self, ctx: commands.Context):
-        """Список собраний"""
-        async with self.bot.db.execute('''
-            SELECT id, channel_name, start_time, status
-            FROM meetings
-            WHERE guild_id = ? AND status IN ('planned', 'active')
-            ORDER BY start_time
-        ''', (ctx.guild.id,)) as cursor:
-            meetings = await cursor.fetchall()
-        
-        embed = discord.Embed(title="📋 Собрания", color=discord.Color.blue())
-        
-        if not meetings:
-            embed.description = "Нет запланированных собраний"
-        else:
-            for m_id, name, start_time, status in meetings:
-                try:
-                    dt = datetime.fromisoformat(start_time)
-                    date_str = format_date(dt)
-                    time_str = dt.strftime('%H:%M')
-                except:
-                    date_str = start_time
-                    time_str = ""
-                
-                status_icon = "🔴 СЕЙЧАС" if status == 'active' else "📅"
-                embed.add_field(
-                    name=f"#{m_id} {status_icon} {name}",
-                    value=f"📅 {date_str} в {time_str}",
-                    inline=False
-                )
-        
-        await ctx.send(embed=embed)
-    
-    @meeting.command(name='cancel', aliases=['отмена'])
-    @officer_or_higher()
-    async def meeting_cancel(self, ctx: commands.Context, meeting_id: int):
-        """Отменить собрание"""
-        result = await self.bot.db.execute('''
-            UPDATE meetings SET status = 'cancelled'
-            WHERE id = ? AND guild_id = ? AND status = 'planned'
-        ''', (meeting_id, ctx.guild.id))
-        await self.bot.db.commit()
-        
-        if result.rowcount == 0:
-            await ctx.send("❌ Собрание не найдено!")
-            return
-        
-        await ctx.send(f"✅ Собрание #{meeting_id} отменено!")
-    
-    @tasks.loop(minutes=1)
-    async def meeting_reminder(self):
-        """Напоминания о собраниях"""
-        now = datetime.now()
-        
-        async with self.bot.db.execute('''
-            SELECT id, guild_id, channel_name, start_time
-            FROM meetings WHERE status = 'planned'
-        ''') as cursor:
-            meetings = await cursor.fetchall()
-        
-        for m_id, guild_id, name, start_time in meetings:
-            try:
-                dt = datetime.fromisoformat(start_time)
-                diff = (dt - now).total_seconds()
-                
-                if 840 <= diff <= 900:  # 14-15 минут
-                    guild = self.bot.get_guild(guild_id)
-                    if guild:
-                        settings = self.bot.guild_settings.get(guild_id, {})
-                        channel_id = settings.get('report_channel_id')
-                        if channel_id:
-                            channel = guild.get_channel(channel_id)
-                            if channel:
-                                embed = discord.Embed(
-                                    title=f"📋 Собрание через 15 минут!",
-                                    description=f"**{name}**\n🕐 Время: {dt.strftime('%H:%M')}",
-                                    color=discord.Color.orange()
-                                )
-                                await channel.send(embed=embed)
-            except Exception as e:
-                logger.error(f"Ошибка напоминания: {e}")
-    
-    @meeting_reminder.before_loop
-    async def before_meeting_reminder(self):
-        await self.bot.wait_until_ready()
-    
-    # ========================================
     # ЭКСПОРТ EXCEL
     # ========================================
     
+    def _event_name_for_date(self, guild_id: int, date_str: str) -> str:
+        """Название события КВ для даты (с учётом воскресного выбора)."""
+        try:
+            wd = datetime.strptime(date_str, '%Y-%m-%d').weekday()
+        except ValueError:
+            return 'КВ'
+        for s in self.bot.get_guild_schedules(guild_id):
+            if wd in s['days_of_week']:
+                return self.bot.get_event_name(guild_id, date_str, s)
+        return 'КВ'
+
     @commands.command(name='export', aliases=['экспорт', 'excel'])
     @officer_or_higher()
     async def export_excel(self, ctx: commands.Context, date: str = None):
-        """Экспорт в Excel"""
+        """
+        Экспорт посещаемости КВ в Excel.
+        Лист 1 — посещаемость за день (по умолчанию сегодня).
+        Лист 2 — общая посещаемость по всем датам.
+        !export            — за сегодня
+        !export 17-01-2026 — лист дня за конкретную дату
+        """
         if not OPENPYXL_AVAILABLE:
             await ctx.send("❌ openpyxl не установлен!")
             return
-        
+
         msg = await ctx.send("📊 Генерация Excel...")
-        
-        guild_id = ctx.guild.id
-        
+
+        guild = ctx.guild
+        guild_id = guild.id
+        settings = self.bot.guild_settings.get(guild_id, {})
+        kv_vc_id = settings.get('kv_vc_channel_id')
+
+        # Дата для листа дня
         if date:
             parsed = parse_date(date)
             if not parsed:
-                await msg.edit(content="❌ Неверный формат даты!")
+                await msg.edit(content="❌ Неверный формат даты! Используйте `DD-MM-YYYY`")
                 return
-            date_db = date_for_db(parsed)
-            date_filter = f"AND date = '{date_db}'"
-            date_display = format_date(parsed)
+            day_dt = parsed
         else:
-            date_filter = ""
-            date_display = "Все даты"
-        
+            day_dt = datetime.now(self.bot.timezone)
+        day_str = date_for_db(day_dt)
+        day_display = format_date(day_dt)
+
+        role_ru = RANK_NAMES
+        role_order = {rank: i for i, rank in enumerate(RANK_ORDER)}
+
         try:
             wb = Workbook()
-            
+
             # Стили
+            thin = Side(style='thin', color="BFBFBF")
+            border = Border(left=thin, right=thin, top=thin, bottom=thin)
             header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
             header_font = Font(bold=True, color="FFFFFF")
-            thin_border = Border(
-                left=Side(style='thin'), right=Side(style='thin'),
-                top=Side(style='thin'), bottom=Side(style='thin')
-            )
+            title_font = Font(bold=True, size=14, color="FFFFFF")
+            title_fill = PatternFill(start_color="2F5496", end_color="2F5496", fill_type="solid")
             green_fill = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
             red_fill = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
-            
-            # ===== ЛИСТ 1: СЕССИИ =====
-            ws_sessions = wb.active
-            ws_sessions.title = "Сессии"
-            
-            headers = ["Дата", "Канал", "Discord ID", "Ник", "Время входа", "Время выхода", "Длительность", "Статус"]
-            for col, h in enumerate(headers, 1):
-                cell = ws_sessions.cell(1, col, h)
-                cell.fill = header_fill
-                cell.font = header_font
-                cell.border = thin_border
-                ws_sessions.column_dimensions[get_column_letter(col)].width = 18
-            
-            async with self.bot.db.execute(f'''
-                SELECT date, channel_name, user_id, display_name, join_time, leave_time, duration_seconds, status
-                FROM voice_sessions WHERE guild_id = ? {date_filter}
-                ORDER BY join_time DESC
-            ''', (guild_id,)) as cursor:
-                row_num = 2
+            yellow_fill = PatternFill(start_color="FFEB9C", end_color="FFEB9C", fill_type="solid")
+            gray_fill = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
+            center = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            left_align = Alignment(horizontal="left", vertical="center")
+
+            members = sorted(
+                [m for m in guild.members if not m.bot],
+                key=lambda m: (role_order.get(self.bot.get_member_role_type(m), 9), m.display_name.lower())
+            )
+
+            # ============ ЛИСТ 1: ПОСЕЩАЕМОСТЬ ЗА ДЕНЬ ============
+            event_name = self._event_name_for_date(guild_id, day_str)
+            stages = self.bot.get_event_stages(event_name)  # [(начало, конец), ...]
+            ws = wb.active
+            ws.title = "Сегодня"
+
+            base_headers1 = ["Ник", "Звание", "Статус", "Вход", "Выход", "Сессии (вход–выход)", "Σ Время на КВ"]
+            stage_headers = [f"Этап {i}\n{s}-{e}" for i, (s, e) in enumerate(stages, 1)]
+            headers1 = base_headers1 + stage_headers
+            n1 = len(headers1)
+            ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=n1)
+            tcell = ws.cell(1, 1, f"Посещаемость КВ — {event_name} — {day_display}")
+            tcell.font = title_font
+            tcell.fill = title_fill
+            tcell.alignment = center
+
+            for col, h in enumerate(headers1, 1):
+                c = ws.cell(2, col, h)
+                c.fill = header_fill
+                c.font = header_font
+                c.border = border
+                c.alignment = center
+
+            base_widths = [22, 12, 12, 16, 16, 34, 16]
+            for i, w in enumerate(base_widths, 1):
+                ws.column_dimensions[get_column_letter(i)].width = w
+            for i in range(len(stage_headers)):
+                ws.column_dimensions[get_column_letter(len(base_widths) + 1 + i)].width = 13
+
+            # Время начала КВ для этого дня
+            kv_start_str = '20:00'
+            for s in self.bot.get_guild_schedules(guild_id):
+                if day_dt.weekday() in s['days_of_week']:
+                    kv_start_str = s['start_time']
+                    break
+            kv_start = datetime.strptime(kv_start_str, '%H:%M').time()
+
+            # Сессии за день в канале КВ
+            sessions_by_user = {}
+            if kv_vc_id:
+                async with self.bot.db.execute('''
+                    SELECT user_id, join_time, leave_time, duration_seconds
+                    FROM voice_sessions
+                    WHERE guild_id = ? AND date = ? AND channel_id = ?
+                    ORDER BY join_time
+                ''', (guild_id, day_str, kv_vc_id)) as cursor:
+                    async for row in cursor:
+                        sessions_by_user.setdefault(row[0], []).append((row[1], row[2], row[3] or 0))
+
+            # Отметки посещаемости за день
+            day_att = {}
+            async with self.bot.db.execute('''
+                SELECT user_id, present, excused FROM kv_attendance
+                WHERE guild_id = ? AND date = ?
+            ''', (guild_id, day_str)) as cursor:
                 async for row in cursor:
-                    date_val, channel, user_id, name, join_t, leave_t, dur, status = row
-                    
-                    try:
-                        join_str = datetime.fromisoformat(join_t).strftime('%H:%M:%S') if join_t else ""
-                    except:
-                        join_str = ""
-                    
-                    try:
-                        leave_str = datetime.fromisoformat(leave_t).strftime('%H:%M:%S') if leave_t else ""
-                    except:
-                        leave_str = ""
-                    
-                    ws_sessions.cell(row_num, 1, format_date(date_str=date_val) if date_val else "")
-                    ws_sessions.cell(row_num, 2, channel or "")
-                    ws_sessions.cell(row_num, 3, user_id)
-                    ws_sessions.cell(row_num, 4, name or "")
-                    ws_sessions.cell(row_num, 5, join_str)
-                    ws_sessions.cell(row_num, 6, leave_str)
-                    ws_sessions.cell(row_num, 7, format_duration(dur) if dur else "")
-                    ws_sessions.cell(row_num, 8, status or "")
-                    
-                    for col in range(1, 9):
-                        ws_sessions.cell(row_num, col).border = thin_border
-                    row_num += 1
-            
-            # ===== ЛИСТ 2: ПОСЕЩАЕМОСТЬ КВ =====
-            ws_kv = wb.create_sheet("Посещаемость_КВ")
-            
-            headers = ["Дата", "Время КВ", "Discord ID", "Ник", "Роль", "Присутствовал", "У/П", "Причина", "Время в VC"]
-            for col, h in enumerate(headers, 1):
-                cell = ws_kv.cell(1, col, h)
-                cell.fill = PatternFill(start_color="C00000", end_color="C00000", fill_type="solid")
-                cell.font = header_font
-                cell.border = thin_border
-                ws_kv.column_dimensions[get_column_letter(col)].width = 16
-            
-            async with self.bot.db.execute(f'''
-                SELECT date, kv_time, user_id, discord_name, role_type, present, excused, reason, vc_time_seconds
-                FROM kv_attendance WHERE guild_id = ? {date_filter}
-                ORDER BY date DESC, role_type, discord_name
+                    day_att[row[0]] = (row[1], row[2])
+
+            # Присутствие на этапе = сессия пересекается с окном этапа
+            day_date = day_dt.date()
+
+            def stage_present(sess, start_str, end_str):
+                sst = datetime.combine(day_date, datetime.strptime(start_str, '%H:%M').time())
+                sen = datetime.combine(day_date, datetime.strptime(end_str, '%H:%M').time())
+                for j, l, d in sess:
+                    js = datetime.fromisoformat(j).replace(tzinfo=None)
+                    le = datetime.fromisoformat(l).replace(tzinfo=None) if l else sen
+                    if js < sen and le > sst:
+                        return True
+                return False
+
+            r = 3
+            for m in members:
+                sessions = sessions_by_user.get(m.id, [])
+                total_dur = sum(s[2] for s in sessions)
+                att = day_att.get(m.id)
+                excused = att[1] if att else None
+                present = bool(att[0]) if att else False
+                if sessions:
+                    present = True
+
+                if sessions:
+                    fj = datetime.fromisoformat(sessions[0][0])
+                    entry = f"был до {kv_start_str}" if fj.time() < kv_start else fj.strftime('%H:%M')
+                    last_leave = sessions[-1][1]
+                    exit_ = datetime.fromisoformat(last_leave).strftime('%H:%M') if last_leave else "ещё в ГС"
+                else:
+                    entry = "—"
+                    exit_ = "—"
+
+                parts = []
+                for j, l, d in sessions:
+                    js = datetime.fromisoformat(j).strftime('%H:%M')
+                    ls = datetime.fromisoformat(l).strftime('%H:%M') if l else "…"
+                    parts.append(f"{js}–{ls}")
+                sessions_str = ", ".join(parts) if parts else "—"
+
+                if excused == 'У/П':
+                    status, fill = "У/П", yellow_fill
+                elif present:
+                    status, fill = "✅ был", green_fill
+                else:
+                    status, fill = "❌ не был", red_fill
+
+                role_type = self.bot.get_member_role_type(m)
+                values = [
+                    m.display_name,
+                    role_ru.get(role_type, role_type),
+                    status,
+                    entry,
+                    exit_,
+                    sessions_str,
+                    format_duration(total_dur) if total_dur > 0 else "—",
+                ]
+                for col, v in enumerate(values, 1):
+                    c = ws.cell(r, col, v)
+                    c.border = border
+                    c.fill = fill
+                    c.alignment = left_align if col in (1, 6) else center
+
+                # Этапы: присутствие на каждом
+                for k, (s_start, s_end) in enumerate(stages):
+                    col = len(base_headers1) + 1 + k
+                    if excused == 'У/П':
+                        sym, sfill = "У/П", yellow_fill
+                    elif sessions:
+                        if stage_present(sessions, s_start, s_end):
+                            sym, sfill = "✅", green_fill
+                        else:
+                            sym, sfill = "☐", red_fill
+                    elif present:
+                        sym, sfill = "—", gray_fill
+                    else:
+                        sym, sfill = "☐", red_fill
+                    c = ws.cell(r, col, sym)
+                    c.border = border
+                    c.fill = sfill
+                    c.alignment = center
+                r += 1
+
+            ws.freeze_panes = "A3"
+            ws.row_dimensions[2].height = 28
+
+            # ============ ЛИСТ 2: ОБЩАЯ ПОСЕЩАЕМОСТЬ ============
+            ws2 = wb.create_sheet("Посещаемость")
+
+            async with self.bot.db.execute('''
+                SELECT DISTINCT date FROM kv_attendance WHERE guild_id = ? ORDER BY date
             ''', (guild_id,)) as cursor:
-                row_num = 2
-                async for row in cursor:
-                    date_val, kv_time, user_id, name, role, present, excused, reason, vc_time = row
-                    
-                    ws_kv.cell(row_num, 1, format_date(date_str=date_val) if date_val else "")
-                    ws_kv.cell(row_num, 2, kv_time or "")
-                    ws_kv.cell(row_num, 3, user_id)
-                    ws_kv.cell(row_num, 4, name or "")
-                    ws_kv.cell(row_num, 5, role or "member")
-                    ws_kv.cell(row_num, 6, "Да" if present else "Нет")
-                    ws_kv.cell(row_num, 7, excused or "")
-                    ws_kv.cell(row_num, 8, reason or "")
-                    ws_kv.cell(row_num, 9, format_duration(vc_time) if vc_time else "")
-                    
-                    fill = green_fill if present else red_fill
-                    for col in range(1, 10):
-                        ws_kv.cell(row_num, col).fill = fill
-                        ws_kv.cell(row_num, col).border = thin_border
-                    row_num += 1
-            
-            # ===== ЛИСТ 3: СОБРАНИЯ =====
-            ws_meetings = wb.create_sheet("Собрания")
-            
-            headers = ["ID", "Название", "Дата", "Начало", "Окончание", "Discord ID", "Ник", "Роль", "Присутствовал"]
-            for col, h in enumerate(headers, 1):
-                cell = ws_meetings.cell(1, col, h)
-                cell.fill = PatternFill(start_color="7030A0", end_color="7030A0", fill_type="solid")
-                cell.font = header_font
-                cell.border = thin_border
-            
-            async with self.bot.db.execute(f'''
-                SELECT m.id, m.channel_name, m.start_time, m.end_time,
-                       ma.user_id, ma.discord_name, ma.role_type, ma.present
-                FROM meetings m
-                LEFT JOIN meeting_attendance ma ON m.id = ma.meeting_id
-                WHERE m.guild_id = ? {date_filter.replace('date', "date(m.start_time)")}
-                ORDER BY m.start_time DESC
+                all_dates = [row[0] for row in await cursor.fetchall()]
+
+            att_map = {}
+            async with self.bot.db.execute('''
+                SELECT user_id, date, present, excused FROM kv_attendance WHERE guild_id = ?
             ''', (guild_id,)) as cursor:
-                row_num = 2
                 async for row in cursor:
-                    m_id, name, start, end, user_id, uname, role, present = row
-                    
-                    try:
-                        start_dt = datetime.fromisoformat(start) if start else None
-                    except:
-                        start_dt = None
-                    
-                    ws_meetings.cell(row_num, 1, m_id)
-                    ws_meetings.cell(row_num, 2, name or "")
-                    ws_meetings.cell(row_num, 3, format_date(start_dt) if start_dt else "")
-                    ws_meetings.cell(row_num, 4, start_dt.strftime('%H:%M') if start_dt else "")
-                    ws_meetings.cell(row_num, 5, "")
-                    ws_meetings.cell(row_num, 6, user_id or "")
-                    ws_meetings.cell(row_num, 7, uname or "")
-                    ws_meetings.cell(row_num, 8, role or "")
-                    ws_meetings.cell(row_num, 9, "Да" if present else "Нет")
-                    
-                    for col in range(1, 10):
-                        ws_meetings.cell(row_num, col).border = thin_border
-                    row_num += 1
-            
-            # ===== ЛИСТ 4: РЕЙДЫ =====
-            ws_raids = wb.create_sheet("Рейды_Активности")
-            
-            headers = ["ID", "Название", "Тип", "Дата", "Время", "Статус", "Создал", "VC"]
-            for col, h in enumerate(headers, 1):
-                cell = ws_raids.cell(1, col, h)
-                cell.fill = PatternFill(start_color="70AD47", end_color="70AD47", fill_type="solid")
-                cell.font = header_font
-                cell.border = thin_border
-            
-            async with self.bot.db.execute(f'''
-                SELECT id, name, raid_type, date, time, status, created_by, vc_channel_id
-                FROM raids WHERE guild_id = ? {date_filter}
-                ORDER BY date DESC
-            ''', (guild_id,)) as cursor:
-                row_num = 2
-                async for row in cursor:
-                    r_id, name, rtype, date_val, time_val, status, created_by, vc_id = row
-                    
-                    creator = ctx.guild.get_member(created_by)
-                    vc = ctx.guild.get_channel(vc_id) if vc_id else None
-                    
-                    ws_raids.cell(row_num, 1, r_id)
-                    ws_raids.cell(row_num, 2, name or "")
-                    ws_raids.cell(row_num, 3, rtype or "")
-                    ws_raids.cell(row_num, 4, format_date(date_str=date_val) if date_val else "")
-                    ws_raids.cell(row_num, 5, time_val or "")
-                    ws_raids.cell(row_num, 6, status or "")
-                    ws_raids.cell(row_num, 7, creator.display_name if creator else str(created_by))
-                    ws_raids.cell(row_num, 8, vc.name if vc else "")
-                    
-                    for col in range(1, 9):
-                        ws_raids.cell(row_num, col).border = thin_border
-                    row_num += 1
-            
-            # ===== ЛИСТ 5: УЧАСТНИКИ РЕЙДОВ =====
-            ws_parts = wb.create_sheet("Участники_рейдов")
-            
-            headers = ["ID Рейда", "Название", "Дата", "Discord ID", "Ник", "Вход", "Выход", "Длительность"]
-            for col, h in enumerate(headers, 1):
-                cell = ws_parts.cell(1, col, h)
-                cell.fill = PatternFill(start_color="ED7D31", end_color="ED7D31", fill_type="solid")
-                cell.font = header_font
-                cell.border = thin_border
-            
-            async with self.bot.db.execute(f'''
-                SELECT rp.raid_id, r.name, r.date, rp.user_id, rp.display_name, 
-                       rp.join_time, rp.leave_time, rp.duration_seconds
-                FROM raid_participants rp
-                JOIN raids r ON rp.raid_id = r.id
-                WHERE r.guild_id = ? {date_filter.replace('date', 'r.date')}
-                ORDER BY r.date DESC
-            ''', (guild_id,)) as cursor:
-                row_num = 2
-                async for row in cursor:
-                    r_id, name, date_val, user_id, uname, join_t, leave_t, dur = row
-                    
-                    try:
-                        join_str = datetime.fromisoformat(join_t).strftime('%H:%M:%S') if join_t else ""
-                    except:
-                        join_str = ""
-                    
-                    try:
-                        leave_str = datetime.fromisoformat(leave_t).strftime('%H:%M:%S') if leave_t else ""
-                    except:
-                        leave_str = ""
-                    
-                    ws_parts.cell(row_num, 1, r_id)
-                    ws_parts.cell(row_num, 2, name or "")
-                    ws_parts.cell(row_num, 3, format_date(date_str=date_val) if date_val else "")
-                    ws_parts.cell(row_num, 4, user_id)
-                    ws_parts.cell(row_num, 5, uname or "")
-                    ws_parts.cell(row_num, 6, join_str)
-                    ws_parts.cell(row_num, 7, leave_str)
-                    ws_parts.cell(row_num, 8, format_duration(dur) if dur else "")
-                    
-                    for col in range(1, 9):
-                        ws_parts.cell(row_num, col).border = thin_border
-                    row_num += 1
-            
-            # Сохраняем
+                    att_map[(row[0], row[1])] = (row[2], row[3])
+
+            abbr = {'Потасовка': 'Пот', 'Турнир': 'Тур', 'Захват базы': 'Зхв'}
+            total_cols = max(2 + len(all_dates) + 2, 2)
+
+            ws2.merge_cells(start_row=1, start_column=1, end_row=1, end_column=total_cols)
+            t2 = ws2.cell(1, 1, "Общая посещаемость КВ — StalZone")
+            t2.font = title_font
+            t2.fill = title_fill
+            t2.alignment = center
+
+            for col, h in enumerate(["Ник", "Звание"], 1):
+                c = ws2.cell(2, col, h)
+                c.fill = header_fill
+                c.font = header_font
+                c.border = border
+                c.alignment = center
+
+            for i, d in enumerate(all_dates):
+                col = 3 + i
+                try:
+                    dd = datetime.strptime(d, '%Y-%m-%d')
+                    ev = self._event_name_for_date(guild_id, d)
+                    label = f"{dd.strftime('%d.%m')}\n{abbr.get(ev, ev[:3])}"
+                except ValueError:
+                    label = d
+                c = ws2.cell(2, col, label)
+                c.fill = header_fill
+                c.font = header_font
+                c.border = border
+                c.alignment = center
+                ws2.column_dimensions[get_column_letter(col)].width = 7
+
+            sum_col = 3 + len(all_dates)
+            pct_col = sum_col + 1
+            for col, h in ((sum_col, "Был"), (pct_col, "%")):
+                c = ws2.cell(2, col, h)
+                c.fill = header_fill
+                c.font = header_font
+                c.border = border
+                c.alignment = center
+                ws2.column_dimensions[get_column_letter(col)].width = 8
+
+            ws2.column_dimensions['A'].width = 22
+            ws2.column_dimensions['B'].width = 12
+
+            r = 3
+            for m in members:
+                role_type = self.bot.get_member_role_type(m)
+                cn = ws2.cell(r, 1, m.display_name)
+                cn.border = border
+                cn.alignment = left_align
+                cr = ws2.cell(r, 2, role_ru.get(role_type, role_type))
+                cr.border = border
+                cr.alignment = center
+
+                present_count = 0
+                counted = 0
+                for i, d in enumerate(all_dates):
+                    col = 3 + i
+                    rec = att_map.get((m.id, d))
+                    if rec is None:
+                        sym, fill = "–", gray_fill
+                    else:
+                        pres, exc = rec
+                        if exc == 'У/П':
+                            sym, fill = "У/П", yellow_fill
+                        elif pres:
+                            sym, fill = "✅", green_fill
+                            present_count += 1
+                            counted += 1
+                        else:
+                            sym, fill = "☐", red_fill
+                            counted += 1
+                    c = ws2.cell(r, col, sym)
+                    c.fill = fill
+                    c.border = border
+                    c.alignment = center
+
+                sc = ws2.cell(r, sum_col, present_count)
+                sc.border = border
+                sc.alignment = center
+                pct = (present_count / counted * 100) if counted else 0
+                pc = ws2.cell(r, pct_col, f"{pct:.0f}%")
+                pc.border = border
+                pc.alignment = center
+                r += 1
+
+            # Легенда
+            r += 1
+            lc = ws2.cell(r, 1, "Легенда:")
+            lc.font = Font(bold=True)
+            for i, (txt, fl) in enumerate((("✅ был", green_fill), ("☐ не был", red_fill),
+                                           ("У/П уваж.", yellow_fill), ("– не было КВ", gray_fill))):
+                c = ws2.cell(r, 2 + i, txt)
+                c.fill = fl
+                c.border = border
+                c.alignment = center
+
+            ws2.freeze_panes = "C3"
+            ws2.row_dimensions[2].height = 28
+
+            # Сохранение
             excel_path = self.bot.config.get('EXCEL_PATH', 'data/clan_attendance.xlsx')
             wb.save(excel_path)
-            
+
             await msg.delete()
-            
+
             embed = discord.Embed(
                 title="📊 Excel отчёт готов!",
-                description=f"**Период:** {date_display}",
                 color=discord.Color.green()
             )
             embed.add_field(
                 name="📋 Листы",
-                value="• Сессии\n• Посещаемость_КВ\n• Собрания\n• Рейды_Активности\n• Участники_рейдов",
+                value=(f"• **Сегодня** — посещаемость за {day_display} ({event_name})\n"
+                       f"• **Посещаемость** — все даты: {len(all_dates)} КВ, {len(members)} участников"),
                 inline=False
             )
-            
             await ctx.send(embed=embed, file=discord.File(excel_path))
-            
+
         except Exception as e:
             logger.error(f"Ошибка экспорта: {e}")
             import traceback
             traceback.print_exc()
             await msg.edit(content=f"❌ Ошибка: {e}")
-    
+
+
     # ========================================
     # СТАТИСТИКА
     # ========================================

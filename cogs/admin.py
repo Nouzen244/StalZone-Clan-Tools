@@ -1,6 +1,6 @@
 """
 Модуль администрирования v3.0
-Настройка VC для КВ, собраний, роли, расписание
+Настройка VC для КВ, роли, расписание
 """
 
 import discord
@@ -8,6 +8,7 @@ from discord.ext import commands
 import logging
 from datetime import datetime
 import json
+from ranks import RANK_ORDER, RANK_NAMES, RANK_ICONS, normalize_rank, rank_label
 
 logger = logging.getLogger('Admin')
 
@@ -43,7 +44,7 @@ class AdminCog(commands.Cog, name="Администрирование"):
         """Мастер начальной настройки"""
         
         embed = discord.Embed(
-            title="🔧 Настройка STALCRAFT Clan Bot v3.0",
+            title="🔧 Настройка StalZone Clan Bot v3.2",
             color=discord.Color.blue()
         )
         
@@ -60,22 +61,6 @@ class AdminCog(commands.Cog, name="Администрирование"):
         else:
             lines.append("❌ VC для КВ: Не настроен")
         
-        # Собрания VC
-        meeting_vc = settings.get('meeting_vc_channel_id')
-        if meeting_vc:
-            ch = ctx.guild.get_channel(meeting_vc)
-            lines.append(f"✅ VC для собраний: {ch.mention if ch else 'Удалён'}")
-        else:
-            lines.append("⚠️ VC для собраний: Не настроен")
-        
-        # Каналы
-        log_ch = settings.get('log_channel_id')
-        if log_ch:
-            ch = ctx.guild.get_channel(log_ch)
-            lines.append(f"✅ Канал логов: {ch.mention if ch else 'Удалён'}")
-        else:
-            lines.append("⚠️ Канал логов: Не настроен")
-        
         report_ch = settings.get('report_channel_id')
         if report_ch:
             ch = ctx.guild.get_channel(report_ch)
@@ -91,33 +76,26 @@ class AdminCog(commands.Cog, name="Администрирование"):
         else:
             lines.append("❌ Роли: Не настроены")
         
-        # Расписание КВ
-        schedules = self.bot.guild_schedules.get(ctx.guild.id, [])
-        if schedules:
-            lines.append(f"✅ Расписание КВ: {len(schedules)} слотов")
-        else:
-            lines.append("⚠️ Расписание КВ: Не настроено")
+        # Расписание КВ (фиксированное)
+        lines.append("📌 Расписание КВ: фиксированное (`!schedule`)")
         
         embed.add_field(name="📋 Текущий статус", value="\n".join(lines), inline=False)
         
         embed.add_field(
             name="📝 Шаги настройки",
             value="""
-**1. Настройте голосовые каналы:**
-`!setvc kv #канал-кв` — для клановых войн
-`!setvc meeting #канал-собраний` — для собраний
+**1. Настройте канал КВ:**
+`!setvc kv #канал-кв` — голосовой канал клановых войн
+`!setchannel report #отчёты` — канал КВ-уведомлений
 
-**2. Настройте текстовые каналы:**
-`!setchannel log #логи` — логи входов/выходов
-`!setchannel report #отчёты` — уведомления
+**2. Звания (роль Discord → звание):**
+`!setrole лидер @Лидер`
+`!setrole офицер @Офицер`
+`!setrole рядовой @Рядовой`
+_или вручную:_ `!setrank @игрок полковник`
 
-**3. Настройте роли:**
-`!setrole leader @Глава`
-`!setrole officer @Офицер`
-`!setrole member @Рядовой`
-
-**4. Добавьте расписание КВ:**
-`!schedule add 20:00-21:30 КВ пн,ср,пт`
+**3. Расписание КВ — фиксированное:**
+`!schedule` — посмотреть расписание (изменить нельзя)
             """,
             inline=False
         )
@@ -132,23 +110,19 @@ class AdminCog(commands.Cog, name="Администрирование"):
     @admin_only()
     async def set_voice_channel(self, ctx: commands.Context, vc_type: str, channel: discord.VoiceChannel):
         """
-        Устанавливает голосовой канал
+        Устанавливает голосовой канал КВ
         !setvc kv #канал - для КВ
-        !setvc meeting #канал - для собраний
         """
         guild_id = ctx.guild.id
         vc_type = vc_type.lower()
-        
+
         type_map = {
             'kv': ('kv_vc_channel_id', 'КВ'),
             'кв': ('kv_vc_channel_id', 'КВ'),
-            'meeting': ('meeting_vc_channel_id', 'собраний'),
-            'собрание': ('meeting_vc_channel_id', 'собраний'),
-            'собрания': ('meeting_vc_channel_id', 'собраний'),
         }
-        
+
         if vc_type not in type_map:
-            await ctx.send("❌ Неверный тип!\nИспользуйте: `kv` или `meeting`")
+            await ctx.send("❌ Неверный тип!\nИспользуйте: `kv`")
             return
         
         db_field, display_name = type_map[vc_type]
@@ -186,24 +160,20 @@ class AdminCog(commands.Cog, name="Администрирование"):
     @admin_only()
     async def set_channel(self, ctx: commands.Context, channel_type: str, channel: discord.TextChannel):
         """
-        Устанавливает текстовый канал
-        !setchannel log #канал - для логов
+        Устанавливает текстовый канал отчётов (КВ-уведомления)
         !setchannel report #канал - для отчётов
         """
         guild_id = ctx.guild.id
-        
+
         type_map = {
-            'log': ('log_channel_id', 'логов'),
-            'лог': ('log_channel_id', 'логов'),
-            'logs': ('log_channel_id', 'логов'),
             'report': ('report_channel_id', 'отчётов'),
             'отчёт': ('report_channel_id', 'отчётов'),
             'reports': ('report_channel_id', 'отчётов'),
         }
-        
+
         channel_type = channel_type.lower()
         if channel_type not in type_map:
-            await ctx.send("❌ Неверный тип!\nИспользуйте: `log` или `report`")
+            await ctx.send("❌ Неверный тип!\nИспользуйте: `report`")
             return
         
         db_field, display_name = type_map[channel_type]
@@ -236,145 +206,200 @@ class AdminCog(commands.Cog, name="Администрирование"):
     # УПРАВЛЕНИЕ РОЛЯМИ
     # ========================================
     
-    @commands.command(name='setrole')
-    @admin_only()
-    async def set_role(self, ctx: commands.Context, role_type: str, role: discord.Role):
-        """
-        Добавляет роль в систему
-        Типы: leader, officer, member, special, recruit
-        """
+    async def _bind_rank_role(self, ctx: commands.Context, rank: str, role: discord.Role):
+        """Привязывает роль Discord к званию (общая логика для всех команд)."""
         guild_id = ctx.guild.id
-        
-        type_info = {
-            'leader': ('leader', 'Глава', '👑'),
-            'глава': ('leader', 'Глава', '👑'),
-            'лидер': ('leader', 'Глава', '👑'),
-            'officer': ('officer', 'Офицер', '⚔️'),
-            'офицер': ('officer', 'Офицер', '⚔️'),
-            'зам': ('officer', 'Офицер', '⚔️'),
-            'member': ('member', 'Рядовой', '🎖️'),
-            'рядовой': ('member', 'Рядовой', '🎖️'),
-            'клан': ('member', 'Рядовой', '🎖️'),
-            'special': ('special', 'Особая', '⭐'),
-            'особый': ('special', 'Особая', '⭐'),
-            'recruit': ('recruit', 'Рекрут', '🆕'),
-            'рекрут': ('recruit', 'Рекрут', '🆕'),
-        }
-        
-        role_type = role_type.lower()
-        if role_type not in type_info:
-            types = ", ".join(['leader', 'officer', 'member', 'special', 'recruit'])
-            await ctx.send(f"❌ Неверный тип!\nДоступные: `{types}`")
-            return
-        
-        normalized, display_name, emoji = type_info[role_type]
-        
         try:
             # Проверяем дубликат
             async with self.bot.db.execute(
                 'SELECT id FROM guild_roles WHERE guild_id = ? AND role_type = ? AND role_id = ?',
-                (guild_id, normalized, role.id)
+                (guild_id, rank, role.id)
             ) as cursor:
                 if await cursor.fetchone():
-                    await ctx.send(f"⚠️ Роль {role.mention} уже добавлена!")
+                    await ctx.send(f"⚠️ Роль {role.mention} уже привязана к званию {RANK_NAMES[rank]}!")
                     return
-            
+
             await self.bot.db.execute('''
                 INSERT INTO guild_roles (guild_id, role_type, role_id, role_name, created_by)
                 VALUES (?, ?, ?, ?, ?)
-            ''', (guild_id, normalized, role.id, role.name, ctx.author.id))
+            ''', (guild_id, rank, role.id, role.name, ctx.author.id))
             await self.bot.db.commit()
-            
+
             # Кэш
-            if guild_id not in self.bot.guild_roles:
-                self.bot.guild_roles[guild_id] = {}
-            if normalized not in self.bot.guild_roles[guild_id]:
-                self.bot.guild_roles[guild_id][normalized] = []
-            self.bot.guild_roles[guild_id][normalized].append(role.id)
-            
+            self.bot.guild_roles.setdefault(guild_id, {}).setdefault(rank, []).append(role.id)
+
             embed = discord.Embed(
-                title=f"{emoji} Роль добавлена!",
-                description=f"**{role.mention}** → **{display_name}**\n"
+                title=f"{RANK_ICONS[rank]} Звание привязано!",
+                description=f"Роль {role.mention} → **{RANK_NAMES[rank]}**\n"
                            f"👥 Участников: {len(role.members)}",
                 color=role.color if role.color != discord.Color.default() else discord.Color.green()
             )
             await ctx.send(embed=embed)
-            
+
         except Exception as e:
             await ctx.send(f"❌ Ошибка: {e}")
+
+    @commands.command(name='setrole')
+    @admin_only()
+    async def set_role(self, ctx: commands.Context, role_type: str, role: discord.Role):
+        """
+        Привязывает роль Discord к званию (универсальная команда).
+        Звания: лидер, полковник, офицер, сержант, боец, рядовой
+        !setrole офицер @Офицеры
+        """
+        normalized = normalize_rank(role_type)
+        if not normalized:
+            types = ", ".join(RANK_NAMES[r] for r in RANK_ORDER)
+            await ctx.send(f"❌ Неверное звание!\nДоступные: {types}")
+            return
+        await self._bind_rank_role(ctx, normalized, role)
+
+    # Отдельная команда на каждое звание: !setleader @роль, !setcolonel @роль и т.д.
+    @commands.command(name='setleader', aliases=['setлидер', 'лидер'])
+    @admin_only()
+    async def set_leader(self, ctx: commands.Context, role: discord.Role):
+        """!setleader @роль — роль Discord → Лидер"""
+        await self._bind_rank_role(ctx, 'leader', role)
+
+    @commands.command(name='setcolonel', aliases=['setполковник', 'полковник'])
+    @admin_only()
+    async def set_colonel(self, ctx: commands.Context, role: discord.Role):
+        """!setcolonel @роль — роль Discord → Полковник"""
+        await self._bind_rank_role(ctx, 'colonel', role)
+
+    @commands.command(name='setofficer', aliases=['setофицер', 'офицер'])
+    @admin_only()
+    async def set_officer(self, ctx: commands.Context, role: discord.Role):
+        """!setofficer @роль — роль Discord → Офицер"""
+        await self._bind_rank_role(ctx, 'officer', role)
+
+    @commands.command(name='setsergeant', aliases=['setсержант', 'сержант'])
+    @admin_only()
+    async def set_sergeant(self, ctx: commands.Context, role: discord.Role):
+        """!setsergeant @роль — роль Discord → Сержант"""
+        await self._bind_rank_role(ctx, 'sergeant', role)
+
+    @commands.command(name='setfighter', aliases=['setбоец', 'боец'])
+    @admin_only()
+    async def set_fighter(self, ctx: commands.Context, role: discord.Role):
+        """!setfighter @роль — роль Discord → Боец"""
+        await self._bind_rank_role(ctx, 'fighter', role)
+
+    @commands.command(name='setprivate', aliases=['setрядовой', 'рядовой'])
+    @admin_only()
+    async def set_private(self, ctx: commands.Context, role: discord.Role):
+        """!setprivate @роль — роль Discord → Рядовой"""
+        await self._bind_rank_role(ctx, 'private', role)
     
     @commands.command(name='removerole')
     @admin_only()
     async def remove_role(self, ctx: commands.Context, role_type: str, role: discord.Role):
-        """Удаляет роль из системы"""
+        """Убирает привязку роли Discord к званию"""
         guild_id = ctx.guild.id
-        
-        type_map = {
-            'leader': 'leader', 'глава': 'leader',
-            'officer': 'officer', 'офицер': 'officer',
-            'member': 'member', 'рядовой': 'member',
-            'special': 'special', 'особый': 'special',
-            'recruit': 'recruit', 'рекрут': 'recruit',
-        }
-        
-        normalized = type_map.get(role_type.lower())
+
+        normalized = normalize_rank(role_type)
         if not normalized:
-            await ctx.send("❌ Неверный тип роли!")
+            await ctx.send("❌ Неверное звание!")
             return
-        
+
         result = await self.bot.db.execute(
             'DELETE FROM guild_roles WHERE guild_id = ? AND role_type = ? AND role_id = ?',
             (guild_id, normalized, role.id)
         )
         await self.bot.db.commit()
-        
+
         if result.rowcount == 0:
-            await ctx.send("⚠️ Роль не найдена в системе!")
+            await ctx.send("⚠️ Привязка не найдена!")
             return
-        
+
         # Кэш
-        if guild_id in self.bot.guild_roles and normalized in self.bot.guild_roles[guild_id]:
-            if role.id in self.bot.guild_roles[guild_id][normalized]:
-                self.bot.guild_roles[guild_id][normalized].remove(role.id)
-        
-        await ctx.send(f"✅ Роль {role.mention} удалена!")
-    
+        roles = self.bot.guild_roles.get(guild_id, {})
+        if normalized in roles and role.id in roles[normalized]:
+            roles[normalized].remove(role.id)
+
+        await ctx.send(f"✅ Привязка роли {role.mention} к званию {RANK_NAMES[normalized]} убрана!")
+
     @commands.command(name='roles', aliases=['роли'])
     @admin_only()
     async def show_roles(self, ctx: commands.Context):
-        """Показывает настроенные роли"""
+        """Показывает иерархию званий и привязанные роли Discord"""
         guild_id = ctx.guild.id
         roles = self.bot.guild_roles.get(guild_id, {})
-        
-        if not roles:
-            await ctx.send("⚠️ Роли не настроены!\nИспользуйте `!setrole <тип> @роль`")
+
+        embed = discord.Embed(
+            title="🪖 Иерархия званий StalZone",
+            description="Звание = ручное назначение (`!setrank`) → роль Discord → Рядовой",
+            color=discord.Color.blue()
+        )
+
+        for rank in RANK_ORDER:
+            role_ids = roles.get(rank, [])
+            if role_ids:
+                mentions = []
+                for rid in role_ids:
+                    role = ctx.guild.get_role(rid)
+                    if role:
+                        mentions.append(f"{role.mention} ({len(role.members)})")
+                    else:
+                        mentions.append(f"~~Удалена~~ (ID: {rid})")
+                value = "\n".join(mentions)
+            else:
+                value = "_роль Discord не привязана_"
+            embed.add_field(name=rank_label(rank), value=value, inline=False)
+
+        embed.set_footer(text="!setrole <звание> @роль  ·  !setrank @игрок <звание>")
+        await ctx.send(embed=embed)
+
+    # ========================================
+    # РУЧНЫЕ ЗВАНИЯ УЧАСТНИКОВ
+    # ========================================
+
+    @commands.command(name='setrank', aliases=['присвоить'])
+    @admin_only()
+    async def set_rank(self, ctx: commands.Context, member: discord.Member, *, rank: str):
+        """
+        Назначает звание участнику вручную (приоритетнее ролей Discord).
+        !setrank @игрок полковник
+        """
+        normalized = normalize_rank(rank)
+        if not normalized:
+            types = ", ".join(RANK_NAMES[r] for r in RANK_ORDER)
+            await ctx.send(f"❌ Неверное звание!\nДоступные: {types}")
             return
-        
-        embed = discord.Embed(title="👥 Роли клана", color=discord.Color.blue())
-        
-        type_info = {
-            'leader': '👑 Глава',
-            'officer': '⚔️ Офицеры',
-            'member': '🎖️ Рядовые',
-            'special': '⭐ Особые',
-            'recruit': '🆕 Рекруты',
-        }
-        
-        for role_type, role_ids in roles.items():
-            if not role_ids:
-                continue
-            
-            title = type_info.get(role_type, role_type)
-            mentions = []
-            for rid in role_ids:
-                role = ctx.guild.get_role(rid)
-                if role:
-                    mentions.append(f"{role.mention} ({len(role.members)})")
-                else:
-                    mentions.append(f"~~Удалена~~ (ID: {rid})")
-            
-            embed.add_field(name=title, value="\n".join(mentions), inline=False)
-        
+
+        await self.bot.set_member_rank(ctx.guild.id, member.id, normalized, ctx.author.id)
+
+        embed = discord.Embed(
+            title="✅ Звание назначено!",
+            description=f"{member.mention} → {rank_label(normalized)}",
+            color=discord.Color.green()
+        )
+        await ctx.send(embed=embed)
+
+    @commands.command(name='delrank', aliases=['снять'])
+    @admin_only()
+    async def del_rank(self, ctx: commands.Context, member: discord.Member):
+        """Убирает ручное звание (звание снова определяется по ролям Discord)"""
+        removed = await self.bot.clear_member_rank(ctx.guild.id, member.id)
+        if not removed:
+            await ctx.send("⚠️ У участника не было ручного звания.")
+            return
+        rank = self.bot.get_member_role_type(member)
+        await ctx.send(f"✅ Ручное звание у {member.mention} убрано. Сейчас: {rank_label(rank)} (по ролям Discord).")
+
+    @commands.command(name='rank', aliases=['ранг'])
+    async def show_rank(self, ctx: commands.Context, member: discord.Member = None):
+        """Показывает звание участника"""
+        target = member or ctx.author
+        rank = self.bot.get_member_role_type(target)
+        manual = f"{ctx.guild.id}:{target.id}" in self.bot.member_ranks
+
+        embed = discord.Embed(
+            title=f"Звание: {target.display_name}",
+            description=f"{rank_label(rank)}\n_{'назначено вручную' if manual else 'по ролям Discord'}_",
+            color=discord.Color.blue()
+        )
+        embed.set_thumbnail(url=target.display_avatar.url)
         await ctx.send(embed=embed)
     
     # ========================================
@@ -382,169 +407,55 @@ class AdminCog(commands.Cog, name="Администрирование"):
     # ========================================
     
     @commands.group(name='schedule', aliases=['sched', 'расп'], invoke_without_command=True)
-    @officer_or_higher()
     async def schedule(self, ctx: commands.Context):
-        """Группа команд расписания КВ"""
+        """Показывает фиксированное расписание КВ"""
         await ctx.invoke(self.bot.get_command('schedule list'))
-    
-    @schedule.command(name='add')
-    @officer_or_higher()
-    async def schedule_add(self, ctx: commands.Context, time_range: str, *, name: str = "КВ"):
-        """
-        Добавляет расписание КВ
-        !schedule add 20:00-21:30 КВ пн,ср,пт
-        """
-        guild_id = ctx.guild.id
-        
-        try:
-            if '-' not in time_range:
-                raise ValueError("Формат: HH:MM-HH:MM")
-            
-            start_str, end_str = time_range.split('-')
-            datetime.strptime(start_str.strip(), '%H:%M')
-            datetime.strptime(end_str.strip(), '%H:%M')
-            
-            start_time = start_str.strip()
-            end_time = end_str.strip()
-            
-        except ValueError:
-            await ctx.send("❌ Неверный формат времени!\nИспользуйте: `HH:MM-HH:MM`")
-            return
-        
-        # Парсим дни недели
-        days_map = {
-            'пн': 0, 'вт': 1, 'ср': 2, 'чт': 3, 'пт': 4, 'сб': 5, 'вс': 6,
-            'mon': 0, 'tue': 1, 'wed': 2, 'thu': 3, 'fri': 4, 'sat': 5, 'sun': 6,
-        }
-        
-        days_of_week = list(range(7))
-        
-        name_parts = name.rsplit(' ', 1)
-        if len(name_parts) == 2:
-            possible_days = name_parts[1].lower().replace(' ', '')
-            if ',' in possible_days or possible_days in days_map:
-                try:
-                    if possible_days.replace(',', '').isdigit():
-                        days_of_week = [int(d) for d in possible_days.split(',')]
-                    else:
-                        days_of_week = [days_map[d.strip()] for d in possible_days.split(',')]
-                    name = name_parts[0]
-                except:
-                    pass
-        
-        days_str = ','.join(map(str, days_of_week))
-        
-        try:
-            cursor = await self.bot.db.execute('''
-                INSERT INTO kv_schedule (guild_id, name, start_time, end_time, days_of_week, created_by)
-                VALUES (?, ?, ?, ?, ?, ?)
-            ''', (guild_id, name, start_time, end_time, days_str, ctx.author.id))
-            await self.bot.db.commit()
-            
-            schedule_id = cursor.lastrowid
-            
-            # Кэш
-            if guild_id not in self.bot.guild_schedules:
-                self.bot.guild_schedules[guild_id] = []
-            
-            self.bot.guild_schedules[guild_id].append({
-                'id': schedule_id,
-                'name': name,
-                'start_time': start_time,
-                'end_time': end_time,
-                'days_of_week': days_of_week,
-                'notify_before': 15
-            })
-            
-            day_names = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
-            days_display = ', '.join([day_names[d] for d in days_of_week])
-            
-            embed = discord.Embed(
-                title="✅ Расписание КВ добавлено!",
-                color=discord.Color.green()
-            )
-            embed.add_field(name="📋 Название", value=name, inline=True)
-            embed.add_field(name="🕐 Время", value=f"{start_time} - {end_time}", inline=True)
-            embed.add_field(name="📅 Дни", value=days_display, inline=True)
-            embed.add_field(name="🆔 ID", value=str(schedule_id), inline=True)
-            
-            await ctx.send(embed=embed)
-            
-        except Exception as e:
-            await ctx.send(f"❌ Ошибка: {e}")
-    
+
     @schedule.command(name='list', aliases=['список'])
     async def schedule_list(self, ctx: commands.Context):
-        """Показывает расписание КВ"""
+        """Показывает фиксированное расписание КВ"""
         guild_id = ctx.guild.id
-        schedules = self.bot.guild_schedules.get(guild_id, [])
-        
+        schedules = self.bot.get_guild_schedules(guild_id)
+        day_names = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
+
         embed = discord.Embed(
-            title="⚔️ Расписание КВ",
+            title="⚔️ Расписание КВ (фиксированное)",
+            description="Расписание постоянное — его нельзя изменить или дополнить.",
             color=discord.Color.red(),
             timestamp=datetime.now()
         )
-        
-        if not schedules:
-            embed.description = "Расписание не настроено.\n\n`!schedule add 20:00-21:30 КВ`"
-        else:
-            day_names = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
-            
-            for s in schedules:
-                days_display = ', '.join([day_names[d] for d in s['days_of_week']])
-                embed.add_field(
-                    name=f"#{s['id']} | {s['name']}",
-                    value=f"⏰ **{s['start_time']} - {s['end_time']}**\n📅 {days_display}",
-                    inline=False
-                )
-        
+
+        # Группируем дни по событию (название + время)
+        grouped = {}
+        order = []
+        for s in schedules:
+            key = (s['name'], s['start_time'], s['end_time'])
+            if key not in grouped:
+                grouped[key] = []
+                order.append(key)
+            grouped[key].extend(s['days_of_week'])
+
+        for (name, start, end) in order:
+            days = sorted(grouped[(name, start, end)])
+            days_display = ', '.join(day_names[d] for d in days)
+            embed.add_field(
+                name=name,
+                value=f"📅 {days_display}\n⏰ **{start} - {end}**",
+                inline=False
+            )
+
         # Текущее КВ
         current = self.bot.get_current_kv_schedule(guild_id)
         if current:
+            today_str = datetime.now(self.bot.timezone).strftime('%Y-%m-%d')
+            event_name = self.bot.get_event_name(guild_id, today_str, current)
             embed.add_field(
                 name="🔴 СЕЙЧАС ИДЁТ",
-                value=f"**{current['name']}** до {current['end_time']}",
+                value=f"**{event_name}** до {current['end_time']}",
                 inline=False
             )
-        
+
         await ctx.send(embed=embed)
-    
-    @schedule.command(name='remove', aliases=['delete', 'удалить'])
-    @officer_or_higher()
-    async def schedule_remove(self, ctx: commands.Context, schedule_id: int):
-        """Удаляет расписание КВ"""
-        guild_id = ctx.guild.id
-        
-        result = await self.bot.db.execute(
-            'DELETE FROM kv_schedule WHERE id = ? AND guild_id = ?',
-            (schedule_id, guild_id)
-        )
-        await self.bot.db.commit()
-        
-        if result.rowcount == 0:
-            await ctx.send("❌ Расписание не найдено!")
-            return
-        
-        # Кэш
-        if guild_id in self.bot.guild_schedules:
-            self.bot.guild_schedules[guild_id] = [
-                s for s in self.bot.guild_schedules[guild_id] if s['id'] != schedule_id
-            ]
-        
-        await ctx.send(f"✅ Расписание #{schedule_id} удалено!")
-    
-    @schedule.command(name='clear', aliases=['очистить'])
-    @admin_only()
-    async def schedule_clear(self, ctx: commands.Context):
-        """Удаляет всё расписание КВ"""
-        guild_id = ctx.guild.id
-        
-        await self.bot.db.execute('DELETE FROM kv_schedule WHERE guild_id = ?', (guild_id,))
-        await self.bot.db.commit()
-        
-        self.bot.guild_schedules[guild_id] = []
-        
-        await ctx.send("✅ Расписание КВ очищено!")
     
     # ========================================
     # СТАТУС
@@ -579,35 +490,64 @@ class AdminCog(commands.Cog, name="Администрирование"):
         # Текущее КВ
         current_kv = self.bot.get_current_kv_schedule(guild_id)
         if current_kv:
+            today_str = datetime.now(self.bot.timezone).strftime('%Y-%m-%d')
+            event_name = self.bot.get_event_name(guild_id, today_str, current_kv)
             embed.add_field(
                 name="🔴 КВ ИДЁТ",
-                value=f"**{current_kv['name']}**\nДо {current_kv['end_time']}",
+                value=f"**{event_name}**\nДо {current_kv['end_time']}",
                 inline=True
             )
         else:
-            schedules = self.bot.guild_schedules.get(guild_id, [])
-            if schedules:
-                embed.add_field(name="📅 КВ", value=f"{len(schedules)} в расписании", inline=True)
-            else:
-                embed.add_field(name="📅 КВ", value="Расписание пусто", inline=True)
+            embed.add_field(name="📅 КВ", value="Расписание фиксированное (`!schedule`)", inline=True)
         
         # Активные сессии
         active = sum(1 for k in self.bot.all_voice_sessions if k.startswith(f"{guild_id}:"))
         embed.add_field(name="🎤 Активных сессий", value=str(active), inline=True)
-        
-        # Активные рейды
-        async with self.bot.db.execute(
-            "SELECT COUNT(*) FROM raids WHERE guild_id = ? AND status = 'active'",
-            (guild_id,)
-        ) as cursor:
-            raids = (await cursor.fetchone())[0]
-        embed.add_field(name="⚔️ Активных рейдов", value=str(raids), inline=True)
-        
-        # Собрание
-        if guild_id in self.bot.active_meetings:
-            embed.add_field(name="📋 Собрание", value="🔴 Идёт", inline=True)
-        
+
         await ctx.send(embed=embed)
+
+    # ========================================
+    # ВХОД НА САЙТ
+    # ========================================
+
+    @commands.command(name='site', aliases=['вход', 'login', 'сайт'])
+    @commands.guild_only()
+    async def site_login(self, ctx: commands.Context):
+        """Выдаёт одноразовую ссылку для входа на сайт клана (в ЛС)."""
+        if not getattr(self.bot, 'web_server', None):
+            await ctx.send("⚠️ Веб-сайт сейчас не запущен (WEB_ENABLED отключён).")
+            return
+
+        # Гарантируем, что пользователь есть в ростере
+        await self.bot.upsert_clan_member(ctx.author)
+
+        code = await self.bot.create_login_code(ctx.guild.id, ctx.author.id)
+        public = await self.bot.get_public_base_url()  # WEB_PUBLIC_URL → ngrok (авто) → localhost
+        link = f"{public}/login?code={code}"
+
+        rank = self.bot.get_member_role_type(ctx.author)
+        dm = discord.Embed(
+            title="🔑 Вход на сайт StalZone",
+            description=(
+                f"Нажми на ссылку, чтобы войти на сайт клана:\n\n"
+                f"🔗 [Войти на сайт]({link})\n\n"
+                f"Или открой сайт и введи код вручную:\n"
+                f"**Код:** `{code}`\n\n"
+                f"Твоё звание на сайте: **{rank_label(rank)}**"
+            ),
+            color=discord.Color.green()
+        )
+        dm.set_footer(text="Ссылка и код одноразовые, действуют 10 минут. Никому их не передавай!")
+
+        try:
+            await ctx.author.send(embed=dm)
+            await ctx.send("📩 Отправил тебе в ЛС ссылку для входа на сайт.")
+        except discord.Forbidden:
+            await ctx.send(
+                "⚠️ Не могу написать тебе в ЛС. Открой личные сообщения для участников "
+                "сервера (Настройки приватности) и повтори `!site`. "
+                "Код входа не публикуется в канале в целях безопасности."
+            )
 
 
 async def setup(bot):

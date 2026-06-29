@@ -1,1 +1,1 @@
-# STALCRAFT Clan Bot v2.0 - Cogs Package
+# StalZone Clan Bot v3.2 - Cogs Package

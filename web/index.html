@@ -1,0 +1,1649 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>STALCRAFT X: CLAN HUB</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Exo+2:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #f97316;
+            --primary-hover: #ea580c;
+            --primary-light: #fb923c;
+            --primary-glow: rgba(249, 115, 22, 0.3);
+        }
+
+        body.theme-duty {
+            --primary-color: #dc2626;
+            --primary-hover: #b91c1c;
+            --primary-light: #ef4444;
+            --primary-glow: rgba(220, 38, 38, 0.3);
+        }
+
+        body.theme-covenant {
+            --primary-color: #a855f7;
+            --primary-hover: #9333ea;
+            --primary-light: #c084fc;
+            --primary-glow: rgba(168, 85, 247, 0.3);
+        }
+
+        body.theme-dawn {
+            --primary-color: #22c55e;
+            --primary-hover: #16a34a;
+            --primary-light: #4ade80;
+            --primary-glow: rgba(34, 197, 94, 0.3);
+        }
+
+        body.theme-mercenaries {
+            --primary-color: #0ea5e9;
+            --primary-hover: #0284c7;
+            --primary-light: #38bdf8;
+            --primary-glow: rgba(14, 165, 233, 0.3);
+        }
+
+        body {
+            font-family: 'Exo 2', sans-serif;
+            background-color: #09090b;
+            color: #e4e4e7;
+        }
+
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #18181b; }
+        ::-webkit-scrollbar-thumb { 
+            background: var(--primary-color); 
+            border-radius: 2px; 
+        }
+        ::-webkit-scrollbar-thumb:hover { background: var(--primary-hover); }
+
+        .neon-border {
+            box-shadow: 0 0 10px var(--primary-glow);
+            border: 1px solid var(--primary-color);
+            transition: box-shadow 0.3s;
+        }
+        .neon-border:hover {
+            box-shadow: 0 0 15px var(--primary-glow);
+        }
+
+        .urgent-bg {
+            background-color: rgba(39, 39, 42, 0.7);
+            backdrop-filter: blur(4px);
+        }
+
+        .event-accent-bg {
+            background-color: rgba(39, 39, 42, 0.6);
+            backdrop-filter: blur(2px);
+        }
+
+        .editable-stat {
+            cursor: pointer;
+            transition: all 0.2s;
+            padding: 2px 4px;
+            border-radius: 4px;
+        }
+        .editable-stat:hover {
+            background-color: var(--primary-glow);
+            outline: 1px dashed var(--primary-color);
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        html, body { height: 100%; }
+
+        .screen {
+            display: none;
+            opacity: 0;
+        }
+        .screen.active {
+            display: block;
+            animation: fadeIn 0.5s ease-out forwards;
+        }
+        /* Каркас приложения: фиксированная шапка + прокручиваемый контент */
+        #app-screen.active {
+            display: flex;
+            height: 100vh;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(4px);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal.active {
+            display: flex;
+            animation: fadeIn 0.3s ease-out;
+        }
+        .modal-content {
+            animation: slideUp 0.4s ease-out;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            transition: all 0.3s ease;
+        }
+        .btn-primary:hover {
+            background-color: var(--primary-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px var(--primary-glow);
+        }
+
+        .role-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            font-weight: 600;
+        }
+
+        .role-glava {
+            background: rgba(220, 38, 38, 0.2);
+            color: #ef4444;
+            border: 1px solid #7f1d1d;
+        }
+
+        .role-zamestitel {
+            background: rgba(249, 115, 22, 0.2);
+            color: #fb923c;
+            border: 1px solid #7c2d12;
+        }
+
+        .role-officer {
+            background: rgba(59, 130, 246, 0.2);
+            color: #60a5fa;
+            border: 1px solid #1e3a8a;
+        }
+
+        .role-efreitor {
+            background: rgba(34, 197, 94, 0.2);
+            color: #4ade80;
+            border: 1px solid #14532d;
+        }
+
+        .role-ryadovoy {
+            background: rgba(161, 161, 170, 0.2);
+            color: #a1a1aa;
+            border: 1px solid #3f3f46;
+        }
+
+        /* Классы для 6 званий бота */
+        .role-leader   { background: rgba(220, 38, 38, 0.2);  color: #ef4444; border: 1px solid #7f1d1d; }
+        .role-colonel  { background: rgba(249, 115, 22, 0.2); color: #fb923c; border: 1px solid #7c2d12; }
+        .role-officer  { background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid #1e3a8a; }
+        .role-sergeant { background: rgba(168, 85, 247, 0.2); color: #c084fc; border: 1px solid #581c87; }
+        .role-fighter  { background: rgba(34, 197, 94, 0.2);  color: #4ade80; border: 1px solid #14532d; }
+        .role-private  { background: rgba(161, 161, 170, 0.2);color: #a1a1aa; border: 1px solid #3f3f46; }
+
+        .canvas-container {
+            background-color: #18181b;
+            overflow: hidden;
+            box-shadow: inset 0 0 20px #000;
+        }
+
+        .canvas-container.pan-mode { cursor: grab; }
+        .canvas-container.pan-mode.panning { cursor: grabbing; }
+        .canvas-container.move-mode { cursor: move; }
+        .canvas-container.eraser-mode { cursor: crosshair; }
+        .canvas-container.marker-mode { cursor: crosshair; }
+
+        .tool-btn.active {
+            background-color: var(--primary-hover);
+            color: black;
+            border-color: var(--primary-light);
+            box-shadow: 0 0 8px var(--primary-glow);
+        }
+
+        .color-btn { transition: transform 0.1s, border-color 0.1s; }
+        .color-btn.active { 
+            transform: scale(1.2); 
+            border-color: white; 
+            box-shadow: 0 0 8px currentColor; 
+        }
+
+        .activity-table th, .activity-table td {
+            border: 1px solid #27272a;
+            text-align: center;
+        }
+        .activity-table th {
+            background-color: #18181b;
+            color: var(--primary-color) !important;
+        }
+        .activity-table td {
+            background-color: #09090b;
+        }
+        .activity-cell {
+            cursor: pointer;
+            user-select: none;
+            transition: background-color 0.2s;
+        }
+        .activity-cell:hover {
+            background-color: #27272a;
+        }
+        
+        .faction-selected {
+            border-width: 3px !important;
+            transform: scale(0.95);
+            box-shadow: 0 0 20px currentColor;
+        }
+        
+        .custom-role-badge {
+            background: rgba(168, 85, 247, 0.2);
+            color: #c084fc;
+            border: 1px solid #6b21a8;
+        }
+        
+        /* Основные цветовые классы на основе CSS переменных */
+        .text-primary { color: var(--primary-color) !important; }
+        .bg-primary { background-color: var(--primary-color) !important; }
+        .border-primary { border-color: var(--primary-color) !important; }
+        .border-l-primary { border-left-color: var(--primary-color) !important; }
+
+        /* Классы для hover-состояний */
+        .hover\:bg-primary:hover { background-color: var(--primary-hover) !important; }
+        .hover\:text-primary:hover { color: var(--primary-hover) !important; }
+
+        /* Для кнопок с акцентным цветом */
+        .btn-theme {
+            background-color: var(--primary-color) !important;
+            color: black !important;
+            font-weight: bold !important;
+            transition: all 0.3s ease !important;
+        }
+        .btn-theme:hover {
+            background-color: var(--primary-hover) !important;
+            transform: translateY(-2px) !important;
+            box-shadow: 0 4px 12px var(--primary-glow) !important;
+        }
+
+        /* Для границ с акцентным цветом */
+        .border-l-theme {
+            border-left-width: 4px !important;
+            border-left-color: var(--primary-color) !important;
+        }
+
+        /* Переопределение Tailwind классов */
+        .text-orange-500 { color: var(--primary-color) !important; }
+        .text-orange-400 { color: var(--primary-color) !important; }
+        .bg-orange-600 { background-color: var(--primary-color) !important; }
+        .border-orange-600 { border-color: var(--primary-color) !important; }
+        .border-l-orange-600 { border-left-color: var(--primary-color) !important; }
+        .shadow-orange-600 { box-shadow: 0 0 20px var(--primary-glow) !important; }
+
+        /* Для ховер-состояний кнопок */
+        .hover\:bg-orange-700:hover { background-color: var(--primary-hover) !important; }
+        
+        /* Убираем обводку у устава и сборок */
+        #rules-list,
+        #builds-container {
+            border: none !important;
+            outline: none !important;
+        }
+        
+        /* Для таблицы активности - горизонтальный скролл */
+        .activity-scroll-container {
+            overflow-x: auto;
+            max-width: 100%;
+        }
+
+        /* Стили для настроек инструмента */
+        .tool-settings-panel {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            z-index: 50;
+            background: #27272a;
+            border: 1px solid #3f3f46;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+            min-width: 200px;
+            opacity: 0;
+            transform: translateY(-10px);
+            transition: opacity 0.2s, transform 0.2s;
+            pointer-events: none;
+        }
+
+        .tool-settings-panel.active {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: all;
+        }
+
+        .tool-settings-panel::before {
+            content: '';
+            position: absolute;
+            top: -6px;
+            left: 20px;
+            width: 12px;
+            height: 12px;
+            background: #27272a;
+            border-left: 1px solid #3f3f46;
+            border-top: 1px solid #3f3f46;
+            transform: rotate(45deg);
+        }
+
+        /* Скрываем сетку на canvas */
+        .hide-grid {
+            background-image: none !important;
+        }
+        
+        /* Стили для перетаскивания */
+        .draggable {
+            cursor: move;
+        }
+        
+        .dragging {
+            opacity: 0.5;
+        }
+        
+        .drop-target {
+            border: 2px dashed var(--primary-color);
+        }
+        
+        /* Стили для скролла на главной */
+        #hub, #activity, #members {
+            overflow-y: auto;
+        }
+        
+        /* Новые стили для маркеров */
+        .marker-image {
+            max-width: 100%;
+            height: auto;
+            object-fit: contain;
+            image-rendering: crisp-edges;
+        }
+        
+        .custom-marker-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0.5rem;
+        }
+        
+        .custom-marker-item {
+            position: relative;
+            border: 1px solid #3f3f46;
+            border-radius: 0.25rem;
+            overflow: hidden;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        .custom-marker-item:hover {
+            transform: scale(1.05);
+            border-color: var(--primary-color);
+        }
+        
+        .custom-marker-item.active {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 10px var(--primary-glow);
+        }
+        
+        .marker-delete-btn {
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            background: rgba(220, 38, 38, 0.8);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            cursor: pointer;
+            z-index: 10;
+        }
+        
+        /* Стили для модалки ролей */
+        .role-color-preview {
+            width: 24px;
+            height: 24px;
+            border-radius: 4px;
+            border: 1px solid #3f3f46;
+        }
+        
+        /* Стили для полезностей */
+        .utility-table {
+            background-color: #09090b;
+            border: 1px solid #27272a;
+            border-radius: 0.5rem;
+            overflow: hidden;
+        }
+        
+        .utility-table th {
+            background-color: #18181b;
+            padding: 0.5rem;
+            text-align: center;
+            border-right: 1px solid #27272a;
+        }
+        
+        .utility-table td {
+            padding: 0.5rem;
+            border-right: 1px solid #27272a;
+            border-top: 1px solid #27272a;
+        }
+        
+        .utility-table input {
+            background: transparent;
+            border: none;
+            width: 100%;
+            color: white;
+            text-align: center;
+        }
+        
+        .utility-table input:focus {
+            outline: 1px solid var(--primary-color);
+            border-radius: 0.25rem;
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden">
+    <!-- ЭКРАН LANDING -->
+    <div id="app-screen" class="screen h-full flex flex-col">
+        <!-- HEADER -->
+        <header class="bg-zinc-900 border-b border-zinc-800 p-4 flex justify-between items-center shrink-0 z-10">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-orange-600 rounded flex items-center justify-center font-bold text-black text-xl skew-x-[-10deg] shadow-lg shadow-orange-600/20">
+                    SC
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-wider text-orange-500 uppercase">Clan Command</h1>
+                    <p class="text-xs text-zinc-500">Stalcraft X Tactical Suite</p>
+                </div>
+            </div>
+            <nav class="hidden md:flex gap-1 bg-zinc-950 p-1 rounded-lg border border-zinc-800">
+                <button onclick="switchTab('hub')" id="nav-hub" 
+                        class="nav-btn px-4 py-2 rounded text-sm font-medium transition-colors bg-orange-600 text-black">
+                    Главная
+                </button>
+                <button onclick="switchTab('activity')" id="nav-activity"
+                        class="nav-btn px-4 py-2 rounded text-sm font-medium transition-colors hover:bg-zinc-800 text-zinc-400">
+                    Активность
+                </button>
+                <button onclick="switchTab('squads')" id="nav-squads"
+                        class="nav-btn px-4 py-2 rounded text-sm font-medium transition-colors hover:bg-zinc-800 text-zinc-400">
+                    Отряды
+                </button>
+                <button onclick="switchTab('calendar')" id="nav-calendar" 
+                        class="nav-btn px-4 py-2 rounded text-sm font-medium transition-colors hover:bg-zinc-800 text-zinc-400">
+                    Расписание
+                </button>
+                <button onclick="switchTab('members')" id="nav-members"
+                        class="mgmt-only nav-btn px-4 py-2 rounded text-sm font-medium transition-colors hover:bg-zinc-800 text-zinc-400">
+                    Участники
+                </button>
+            </nav>
+            <div class="flex items-center gap-2">
+                <div class="hidden md:flex items-center gap-2 mr-3">
+                    <span class="text-xs text-zinc-500" id="current-user-display"></span>
+                </div>
+                <button onclick="logout()" 
+                        class="hidden md:block text-red-400 hover:text-red-300 transition text-sm px-3 py-1 rounded border border-zinc-800 hover:border-red-900">
+                    Выход
+                </button>
+                <button class="md:hidden text-orange-500" onclick="document.getElementById('mobile-nav').classList.toggle('hidden')">
+                    ☰
+                </button>
+            </div>
+        </header>
+
+        <!-- Мобильная навигация -->
+        <div id="mobile-nav" class="md:hidden bg-zinc-900 border-t border-zinc-800 p-2 hidden">
+            <div class="grid grid-cols-4 gap-1">
+                <button onclick="switchTab('hub')" class="bg-zinc-800 p-2 rounded text-xs text-center">Главная</button>
+                <button onclick="switchTab('activity')" class="bg-zinc-800 p-2 rounded text-xs text-center">Активность</button>
+                <button onclick="switchTab('squads')" class="bg-zinc-800 p-2 rounded text-xs text-center">Отряды</button>
+                <button onclick="switchTab('calendar')" class="bg-zinc-800 p-2 rounded text-xs text-center">Расписание</button>
+                <button onclick="switchTab('members')" class="mgmt-only bg-zinc-800 p-2 rounded text-xs text-center">Участники</button>
+                <button onclick="logout()" class="bg-red-900/30 p-2 rounded text-xs text-center">Выход</button>
+            </div>
+        </div>
+
+        <!-- ТАБЫ КОНТЕНТА -->
+        <div class="flex-1 overflow-hidden">
+            <!-- ГЛАВНАЯ СТРАНИЦА (HUB) -->
+            <section id="hub" class="tab-content h-full overflow-y-auto p-6">
+                <div class="max-w-6xl mx-auto">
+                    <div class="text-center mb-8">
+                        <div class="flex items-center justify-center gap-3 mb-2">
+                            <h2 class="text-3xl font-bold text-white editable-stat" onclick="editClanName()" id="clan-name-display">
+                                STALKERS UNITED
+                            </h2>
+                            <button onclick="editClanName()" class="text-orange-500 hover:text-orange-400 text-sm opacity-0 hover:opacity-100">
+                                ✏ Изменить
+                            </button>
+                        </div>
+                    </div>
+                    <div class="grid md:grid-cols-3 gap-6">
+                        <!-- Рекомендации (только офицер+) -->
+                        <div class="mgmt-only bg-zinc-900 border border-zinc-800 rounded-lg p-6">
+                            <h3 class="text-lg font-bold text-orange-500 mb-4">Рекомендации</h3>
+                            <div class="space-y-2 text-sm text-zinc-400">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-orange-500">⚙</span>
+                                    <span>Настройте статус клана</span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <span class="text-blue-500">🛡️</span>
+                                    <span>Составьте и настройте отряды</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Быстрые действия (только офицер+) -->
+                        <div class="mgmt-only bg-zinc-900 border border-zinc-800 rounded-lg p-6">
+                            <h3 class="text-lg font-bold text-orange-500 mb-4">Быстрые действия</h3>
+                            <div class="space-y-2">
+                                <button onclick="switchTab('members')"
+                                        class="w-full bg-zinc-800 hover:bg-zinc-700 text-white text-sm py-2 rounded transition">
+                                    👥 Управление участниками
+                                </button>
+                                <button onclick="switchTab('squads')"
+                                        class="w-full bg-zinc-800 hover:bg-zinc-700 text-white text-sm py-2 rounded transition">
+                                    🛡️ Отряды
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Статус клана -->
+                        <div class="lg:col-span-3 neon-border bg-zinc-900/50 p-6 rounded-lg">
+                            <h3 class="text-lg font-bold text-white mb-4">Статус Клана</h3>
+                            <ul class="space-y-3">
+                                <li class="flex justify-between items-center border-b border-zinc-800 pb-2">
+                                    <span class="text-zinc-500">Уровень базы</span>
+                                    <span class="text-orange-400 font-mono editable-stat" onclick="editClanLevel()" id="clan-level-display">
+                                        LVL 4
+                                    </span>
+                                </li>
+                                <li class="flex justify-between items-center border-b border-zinc-800 pb-2">
+                                    <span class="text-zinc-500">Казна</span>
+                                    <span class="text-green-500 font-mono editable-stat" onclick="editClanTreasury()" id="clan-treasury-display">
+                                        15,400,000 ₽
+                                    </span>
+                                </li>
+                                <li class="flex justify-between items-center border-b border-zinc-800 pb-2">
+                                    <span class="text-zinc-500">Активных бойцов</span>
+                                    <span class="text-white font-mono editable-stat" onclick="editMaxMembers()" id="active-members-count">
+                                        0/30
+                                    </span>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ТАКТИЧЕСКАЯ ДОСКА (TACTICS) -->
+            <!-- АКТИВНОСТЬ (КВ) -->
+            <section id="activity" class="tab-content hidden h-full overflow-y-auto p-6">
+                <div class="max-w-full mx-auto">
+                    <div class="flex flex-wrap justify-between items-center gap-3 mb-4">
+                        <h2 class="text-2xl font-bold text-orange-500">📊 Активность КВ</h2>
+                        <div class="flex gap-2 items-center">
+                            <div class="flex rounded-lg overflow-hidden border border-zinc-700">
+                                <button id="actview-month" onclick="setActivityView('month')" class="px-3 py-1.5 text-xs font-medium bg-orange-600 text-black">Месяц</button>
+                                <button id="actview-day" onclick="setActivityView('day')" class="px-3 py-1.5 text-xs font-medium bg-zinc-800 text-zinc-300">День</button>
+                            </div>
+                            <button onclick="addActivityDate()" class="mgmt-only bg-orange-600 hover:bg-orange-700 text-black px-3 py-1.5 rounded font-bold text-xs">+ День КВ</button>
+                            <button onclick="showRemoveDateModal()" class="mgmt-only bg-red-900/30 hover:bg-red-900/50 text-red-400 px-3 py-1.5 rounded border border-red-900/50 text-xs">− День</button>
+                        </div>
+                    </div>
+                    <div id="activity-months" class="flex flex-wrap gap-2 mb-4"></div>
+                    <div id="activity-view"></div>
+                </div>
+            </section>
+
+            <!-- ОТРЯДЫ (SQUADS) -->
+            <section id="squads" class="tab-content hidden h-full overflow-y-auto p-6">
+                <div class="max-w-5xl mx-auto">
+                    <div class="flex flex-wrap justify-between items-center gap-3 mb-2">
+                        <h2 class="text-2xl font-bold text-orange-500">🛡️ Отряды</h2>
+                        <button onclick="createSquad()" class="mgmt-only bg-orange-600 hover:bg-orange-700 text-black px-4 py-2 rounded font-bold text-sm">+ Отряд</button>
+                    </div>
+                    <p class="text-sm text-zinc-500 mb-4">Отряд — до 5 бойцов. Состав берётся из участников Discord. Создавать и менять может офицер и выше.</p>
+                    <div id="squads-list" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+                </div>
+            </section>
+
+
+            <!-- РАСПИСАНИЕ КВ (CALENDAR) -->
+            <section id="calendar" class="tab-content hidden h-full overflow-y-auto p-6">
+                <div class="max-w-5xl mx-auto w-full">
+                    <h2 class="text-2xl font-bold text-white mb-2">📅 Расписание КВ</h2>
+                    <p class="text-sm text-zinc-500 mb-6">Бои идут автоматически по фиксированному расписанию. Офицеры и выше могут отменить КВ на конкретный день — бот оповестит в Discord.</p>
+
+                    <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4 mb-6">
+                        <h3 class="text-lg font-bold text-orange-500 mb-3">Недельный график</h3>
+                        <div id="kv-weekly" class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2"></div>
+                    </div>
+
+                    <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4 mb-6">
+                        <h3 class="text-lg font-bold text-orange-500 mb-3">Ближайшие бои</h3>
+                        <div id="kv-upcoming" class="space-y-2">
+                            <p class="text-xs text-zinc-500 italic">Загрузка…</p>
+                        </div>
+                    </div>
+
+                </div>
+            </section>
+
+            <!-- УЧАСТНИКИ (MEMBERS) -->
+            <section id="members" class="tab-content hidden h-full overflow-y-auto p-6">
+                <div class="max-w-6xl mx-auto">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-bold text-orange-500">Состав клана</h2>
+                        <span class="text-xs text-zinc-500">Участники синхронизируются из Discord. Звание = роль в Discord.</span>
+                    </div>
+                    <div class="activity-scroll-container">
+                        <div id="members-list" class="space-y-3">
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <!-- МОДАЛЬНОЕ ОКНО НАЗНАЧЕНИЯ РОЛИ -->
+    <div id="remove-date-modal" class="modal">
+        <div class="modal-content bg-zinc-900 border border-zinc-800 rounded-xl p-6 max-w-md w-full mx-4">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-2xl font-bold text-white">🗑️ Удалить дату</h3>
+                <button onclick="closeRemoveDateModal()" class="text-zinc-500 hover:text-white text-2xl">✕</button>
+            </div>
+            <div class="space-y-4">
+                <p class="text-zinc-400 text-sm">Выберите дату для удаления:</p>
+                <div id="date-list-container" class="max-h-60 overflow-y-auto space-y-2">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script>
+        // ============================================================
+        // ИНТЕГРАЦИЯ С БОТОМ: серверное хранилище + вход через Discord
+        // Источник истины — бот. Вход только по коду из команды !site.
+        // ============================================================
+
+        // Звания (6 шт., как в боте). key (API) <-> русское имя (UI)
+        const RANK_KEY_TO_NAME = {
+            leader: 'Лидер', colonel: 'Полковник', officer: 'Офицер',
+            sergeant: 'Сержант', fighter: 'Боец', private: 'Рядовой'
+        };
+        const RANK_NAME_TO_KEY = {};
+        Object.keys(RANK_KEY_TO_NAME).forEach(k => { RANK_NAME_TO_KEY[RANK_KEY_TO_NAME[k]] = k; });
+        const RANK_NAMES_ORDER = ['Лидер', 'Полковник', 'Офицер', 'Сержант', 'Боец', 'Рядовой'];
+
+        // SVG-иконки званий (звёзды для офицеров+, шевроны для младших)
+        const RANK_COLORS = { leader: '#fbbf24', colonel: '#fb923c', officer: '#60a5fa', sergeant: '#c084fc', fighter: '#4ade80', private: '#a1a1aa' };
+        function _starPath(cx, cy, s, c) {
+            let d = '';
+            for (let i = 0; i < 10; i++) {
+                const a = -Math.PI / 2 + i * Math.PI / 5;
+                const r = i % 2 ? s * 0.45 : s;
+                d += (i ? ' L' : 'M') + (cx + r * Math.cos(a)).toFixed(1) + ' ' + (cy + r * Math.sin(a)).toFixed(1);
+            }
+            return `<path d="${d} Z" fill="${c}"/>`;
+        }
+        function _chevron(cy, c) {
+            return `<path d="M4.5 ${cy} L10 ${(cy - 3).toFixed(1)} L15.5 ${cy}" fill="none" stroke="${c}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>`;
+        }
+        function rankBadge(rankName) {
+            const key = RANK_NAME_TO_KEY[rankName] || 'private';
+            const c = RANK_COLORS[key] || RANK_COLORS.private;
+            let inner = '';
+            if (key === 'leader') inner = _starPath(5, 10, 3, c) + _starPath(10, 10, 3, c) + _starPath(15, 10, 3, c);
+            else if (key === 'colonel') inner = _starPath(6.5, 10, 3.6, c) + _starPath(13.5, 10, 3.6, c);
+            else if (key === 'officer') inner = _starPath(10, 10, 5, c);
+            else if (key === 'sergeant') inner = _chevron(8, c) + _chevron(11.5, c) + _chevron(15, c);
+            else if (key === 'fighter') inner = _chevron(9.5, c) + _chevron(13, c);
+            else inner = _chevron(11.5, c);
+            return `<svg width="16" height="16" viewBox="0 0 20 20" style="display:inline-block;vertical-align:-3px;flex:none"><circle cx="10" cy="10" r="9" fill="#0b0b0e" stroke="${c}" stroke-width="1.4"/>${inner}</svg>`;
+        }
+
+        // Текущий пользователь (из /api/me)
+        const Me = { user: null, permissions: {}, rank: 'private' };
+        function canEdit() { return !!(Me.permissions && Me.permissions.canEditActivity); }
+
+        // fetch-обёртки. Заголовок ngrok-skip-browser-warning нужен, чтобы
+        // бесплатный ngrok не подсовывал страницу-предупреждение вместо JSON.
+        const Api = {
+            async get(path) {
+                const r = await fetch(path, {
+                    credentials: 'same-origin',
+                    headers: { 'ngrok-skip-browser-warning': 'true' }
+                });
+                if (r.status === 401) throw new Error('unauthorized');
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return r.json();
+            },
+            async send(method, path, body) {
+                const r = await fetch(path, {
+                    method, credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
+                    body: body !== undefined ? JSON.stringify(body) : undefined
+                });
+                let data = null;
+                try { data = await r.json(); } catch (e) {}
+                if (r.status === 403) { showToastMsg('Недостаточно прав (нужен офицер и выше)'); throw new Error('forbidden'); }
+                if (r.status === 401) { showToastMsg('Сессия истекла — войдите снова через !site'); throw new Error('unauthorized'); }
+                if (!r.ok) throw new Error((data && data.error) || ('HTTP ' + r.status));
+                return data;
+            },
+            post(p, b) { return this.send('POST', p, b); },
+            patch(p, b) { return this.send('PATCH', p, b); },
+            del(p) { return this.send('DELETE', p); }
+        };
+
+        // Ключи сайта, которые просто персистятся на сервере (web_kv) как есть
+        const SERVER_KEYS = [];
+
+        // Store — синхронная обёртка (как localStorage), но поверх памяти + сервера
+        const Store = {
+            _cache: {},
+            _timers: {},
+            getItem(key) { return (key in this._cache) ? this._cache[key] : null; },
+            setItem(key, value) { this._cache[key] = String(value); this._persist(key); },
+            removeItem(key) { delete this._cache[key]; },
+            _persist(key) {
+                if (key === 'sc_current_user' || key === 'sc_users') return;   // сессия / синтез
+                if (key === 'sc_activity_data') {                              // ядро — кроме картинок
+                    try {
+                        const ad = JSON.parse(this._cache[key]);
+                        this.setItem('activity_dateImages', JSON.stringify(ad.dateImages || {}));
+                    } catch (e) {}
+                    return;
+                }
+                if (key === 'sc_clans') { this._persistClanMeta(); return; }
+                if (SERVER_KEYS.includes(key)) {
+                    clearTimeout(this._timers[key]);
+                    this._timers[key] = setTimeout(() => {
+                        let val = null;
+                        try { val = JSON.parse(this._cache[key]); } catch (e) { val = this._cache[key]; }
+                        Api.post('/api/store/' + encodeURIComponent(key), { value: val }).catch(() => {});
+                    }, 400);
+                }
+            },
+            _persistClanMeta() {
+                try {
+                    const clan = JSON.parse(this._cache['sc_clans'] || '[]')[0];
+                    if (clan) {
+                        const meta = Object.assign({}, clan); delete meta.members;
+                        Api.post('/api/store/clan_meta', { value: meta }).catch(() => {});
+                    }
+                } catch (e) {}
+            },
+            memberIdByName(name) {
+                try { return (JSON.parse(this._cache['sc_activity_data']).members.find(m => m.name === name) || {}).id || null; }
+                catch (e) { return null; }
+            },
+            async bootstrap() {
+                Me.user = await Api.get('/api/me');          // бросит при 401
+                Me.permissions = Me.user.permissions || {};
+                Me.rank = Me.user.rank;
+                const results = await Promise.all(SERVER_KEYS.map(k =>
+                    Api.get('/api/store/' + encodeURIComponent(k)).catch(() => ({ value: null }))));
+                SERVER_KEYS.forEach((k, i) => {
+                    const v = results[i].value;
+                    if (v !== null && v !== undefined) this._cache[k] = JSON.stringify(v);
+                });
+                initializeStorage();                          // дефолты для отсутствующих ключей
+                await this.refreshCore();
+                const clanId = JSON.parse(this._cache['sc_clans'])[0].id;
+                this._cache['sc_current_user'] = JSON.stringify({
+                    username: Me.user.callsign, role: RANK_KEY_TO_NAME[Me.rank] || 'Рядовой',
+                    clanId, discord_id: Me.user.discord_id
+                });
+            },
+            async refreshCore() {
+                const activity = await Api.get('/api/activity');
+                const members = activity.members.map(m => ({
+                    id: m.id, discord_id: m.discord_id, name: m.callsign,
+                    rank: RANK_KEY_TO_NAME[m.rank] || 'Рядовой', manual: m.manual,
+                    records: m.records || {}
+                }));
+                const dateImages = this._cache['activity_dateImages']
+                    ? JSON.parse(this._cache['activity_dateImages']) : {};
+                this._cache['sc_activity_data'] = JSON.stringify({
+                    dates: activity.dates, dateImages, members
+                });
+                let meta = null;
+                try { meta = (await Api.get('/api/store/clan_meta')).value; } catch (e) {}
+                const clan = meta || {
+                    id: 'clan_' + (Me.user.guild_id || '0'), name: 'StalZone', faction: 'Долг',
+                    leader: Me.user.callsign, status: { level: 1, treasury: 0, maxMembers: 50 },
+                    createdAt: new Date().toISOString()
+                };
+                if (!clan.id) clan.id = 'clan_' + (Me.user.guild_id || '0');
+                if (!clan.status) clan.status = { level: 1, treasury: 0, maxMembers: 50 };
+                clan.members = members.map(m => m.name);
+                this._cache['sc_clans'] = JSON.stringify([clan]);
+                this._cache['sc_users'] = JSON.stringify(members.map(m => ({
+                    username: m.name, role: m.rank, clanId: clan.id, discord_id: m.discord_id, memberId: m.id
+                })));
+            }
+        };
+
+        // Лёгкий тост для сообщений об ошибках/правах
+        function showToastMsg(msg) {
+            try {
+                let t = document.getElementById('sc-toast');
+                if (!t) {
+                    t = document.createElement('div');
+                    t.id = 'sc-toast';
+                    t.style.cssText = 'position:fixed;bottom:20px;right:20px;background:#dc2626;color:#fff;' +
+                        'padding:10px 16px;border-radius:8px;z-index:9999;transition:opacity .3s;max-width:320px;';
+                    document.body.appendChild(t);
+                }
+                t.textContent = msg; t.style.opacity = '1';
+                clearTimeout(window._scToastTimer);
+                window._scToastTimer = setTimeout(() => { t.style.opacity = '0'; }, 2800);
+            } catch (e) { console.warn(msg); }
+        }
+
+        // Дата YYYY-MM-DD -> ДД.ММ для отображения
+        function fmtDate(d) {
+            if (typeof d !== 'string') return d;
+            const m = d.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+            return m ? `${m[3]}.${m[2]}` : d;
+        }
+        // Ввод пользователя -> канонический YYYY-MM-DD
+        function normalizeDateInput(s) {
+            s = (s || '').trim();
+            let m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+            if (m) return s;
+            m = s.match(/^(\d{2})[.\-/](\d{2})[.\-/](\d{4})$/);   // ДД.ММ.ГГГГ
+            if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+            m = s.match(/^(\d{2})[.\-/](\d{2})$/);                // ДД.ММ -> текущий год
+            if (m) return `${new Date().getFullYear()}-${m[2]}-${m[1]}`;
+            return null;
+        }
+
+        // Экран входа по коду (создаётся динамически, чтобы не трогать вёрстку)
+        function showCodeLogin(message) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            let scr = document.getElementById('code-login-screen');
+            if (!scr) {
+                scr = document.createElement('div');
+                scr.id = 'code-login-screen';
+                scr.className = 'screen active';
+                scr.style.cssText = 'min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;';
+                scr.innerHTML = `
+                    <div style="max-width:420px;width:100%;background:#18181b;border:1px solid #27272a;border-radius:16px;padding:32px;text-align:center;">
+                        <div style="font-size:48px;">☢️</div>
+                        <h1 style="font-size:24px;font-weight:700;color:#fff;margin:8px 0;">StalZone — Вход</h1>
+                        <p style="color:#a1a1aa;font-size:14px;margin-bottom:20px;">
+                            Вход на сайт только через Discord. Напишите <code style="color:var(--primary-color);">!site</code>
+                            боту — он пришлёт ссылку и код в личные сообщения.
+                        </p>
+                        <div id="code-login-msg" style="color:#f87171;font-size:13px;margin-bottom:10px;min-height:18px;"></div>
+                        <input id="login-code" type="text" placeholder="Введите код"
+                               style="width:100%;padding:12px;border-radius:8px;background:#09090b;border:1px solid #3f3f46;color:#fff;text-align:center;font-size:18px;letter-spacing:2px;text-transform:uppercase;margin-bottom:12px;">
+                        <button onclick="redeemCode()"
+                               style="width:100%;padding:12px;border-radius:8px;background:var(--primary-color);color:#fff;font-weight:600;border:none;cursor:pointer;">
+                            Войти
+                        </button>
+                    </div>`;
+                document.body.appendChild(scr);
+                const inp = scr.querySelector('#login-code');
+                inp.addEventListener('keydown', e => { if (e.key === 'Enter') redeemCode(); });
+            }
+            scr.classList.add('active');
+            const msgEl = document.getElementById('code-login-msg');
+            if (msgEl) msgEl.textContent = message || '';
+        }
+
+        async function redeemCode() {
+            const inp = document.getElementById('login-code');
+            const code = inp ? inp.value.trim() : '';
+            if (!code) { showCodeLogin('Введите код из команды !site'); return; }
+            try {
+                await Api.post('/api/auth/redeem', { code });
+                await bootApp();
+            } catch (e) {
+                showCodeLogin('Неверный или просроченный код. Получите новый: !site');
+            }
+        }
+
+        let _corePollTimer = null;
+        async function bootApp() {
+            try {
+                await Store.bootstrap();
+                applyTheme(JSON.parse(Store.getItem('sc_clans'))[0].faction);
+                showAppScreen();
+                if (_corePollTimer) clearInterval(_corePollTimer);
+                _corePollTimer = setInterval(() => {
+                    Store.refreshCore().then(() => {
+                        const tab = document.querySelector('#activity:not(.hidden)');
+                        if (tab) loadActivityData();
+                    }).catch(() => {});
+                }, 20000);
+            } catch (e) {
+                const invalid = new URLSearchParams(location.search).get('login') === 'invalid';
+                showCodeLogin(invalid ? 'Ссылка недействительна или просрочена. Получите новую: !site' : '');
+            }
+        }
+
+        // Применить изменение ядра и перерисовать
+        async function refreshCoreAndRender() {
+            try {
+                await Store.refreshCore();
+                loadActivityData();
+                loadMembersList();
+                try {
+                    const clan = JSON.parse(Store.getItem('sc_clans'))[0];
+                    const el = document.getElementById('active-members-count');
+                    if (el) el.textContent = `${clan.members.length}/${clan.status.maxMembers}`;
+                } catch (e) {}
+            } catch (e) {}
+        }
+
+        // Глобальные переменные и структуры данных
+
+        const rankOrder = ['Лидер', 'Полковник', 'Офицер', 'Сержант', 'Боец', 'Рядовой'];
+
+        // Site-only разделы больше не используют локальные дефолты (ядро приходит
+        // с сервера в Store.bootstrap). Оставлено как no-op для совместимости.
+        function initializeStorage() { /* no-op */ }
+
+        // Навигация
+
+
+
+
+        function showAppScreen() {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById('app-screen').classList.add('active');
+            loadAppData();
+        }
+
+        // Авторизация
+
+
+        // Кланы
+        let selectedFaction = 'Долг';
+        
+
+        
+        // Фракционные темы убраны — единое оформление (оранжевое).
+        function applyTheme(_faction) { /* no-op */ }
+
+
+        function getCurrentClan() {
+            const currentUser = JSON.parse(Store.getItem('sc_current_user'));
+            const clans = JSON.parse(Store.getItem('sc_clans'));
+            return clans.find(c => c.id === currentUser.clanId);
+        }
+
+        function getCurrentUser() {
+            return JSON.parse(Store.getItem('sc_current_user'));
+        }
+
+        function getClanMembers() {
+            const clan = getCurrentClan();
+            if (!clan) return [];
+            
+            const users = JSON.parse(Store.getItem('sc_users'));
+            return clan.members.map(username => {
+                const user = users.find(u => u.username === username);
+                return {
+                    username,
+                    role: user ? user.role : 'Рядовой'
+                };
+            });
+        }
+
+        function updateClan(clan) {
+            const clans = JSON.parse(Store.getItem('sc_clans'));
+            const index = clans.findIndex(c => c.id === clan.id);
+            if (index !== -1) {
+                clans[index] = clan;
+                Store.setItem('sc_clans', JSON.stringify(clans));
+            }
+        }
+
+        // Загрузка данных приложения
+        function loadAppData() {
+            const currentUser = getCurrentUser();
+            const clan = getCurrentClan();
+            
+            if (!clan || !currentUser) {
+                logout();
+                return;
+            }
+            
+            // Применяем права интерфейса (видимость вкладок по званию)
+            applyPermsUI();
+
+            // Заголовок: текущий пользователь + клан
+            const ud = document.getElementById('current-user-display');
+            if (ud) ud.textContent = currentUser.username;
+            const cn = document.getElementById('clan-name-display');
+            if (cn) cn.textContent = clan.name;
+
+            // Статистика
+            const lvl = document.getElementById('clan-level-display');
+            if (lvl) lvl.textContent = `LVL ${clan.status.level}`;
+            const tr = document.getElementById('clan-treasury-display');
+            if (tr) tr.textContent = `${clan.status.treasury.toLocaleString('ru-RU')} ₽`;
+            const amc = document.getElementById('active-members-count');
+            if (amc) amc.textContent = `${clan.members.length}/${clan.status.maxMembers}`;
+
+            loadMembersList();
+            loadActivityData();
+            loadCalendar();
+            loadSquads();
+        }
+
+        // Видимость элементов по правам (офицер+). Вкладка «Участники» — только им.
+        function applyPermsUI() {
+            const mgmt = canEdit();
+            document.querySelectorAll('.mgmt-only').forEach(el => {
+                el.style.display = mgmt ? '' : 'none';
+            });
+        }
+
+        // Табы
+        function switchTab(tabName) {
+            // «Участники» — только офицер и выше
+            if (tabName === 'members' && !canEdit()) {
+                showToastMsg('Вкладка «Участники» доступна офицерам и выше');
+                tabName = 'hub';
+            }
+
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.add('hidden');
+                tab.classList.remove('h-full', 'overflow-y-auto');
+            });
+
+            const tab = document.getElementById(tabName);
+            if (tab) {
+                tab.classList.remove('hidden');
+                tab.classList.add('h-full', 'overflow-y-auto');
+            }
+
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.remove('bg-orange-600', 'text-black');
+                btn.classList.add('hover:bg-zinc-800', 'text-zinc-400');
+            });
+
+            const navBtn = document.getElementById(`nav-${tabName}`);
+            if (navBtn) {
+                navBtn.classList.remove('hover:bg-zinc-800', 'text-zinc-400');
+                navBtn.classList.add('bg-orange-600', 'text-black');
+            }
+
+            if (tabName === 'calendar') loadCalendar();
+            if (tabName === 'squads') loadSquads();
+            if (tabName === 'activity') loadActivityData();
+        }
+
+        // Редактирование клана
+        function editClanName() {
+            const currentUser = getCurrentUser();
+            
+            const clan = getCurrentClan();
+            const newName = prompt('Введите новое название клана:', clan.name);
+            if (newName && newName.trim() && newName !== clan.name) {
+                clan.name = newName.trim();
+                updateClan(clan);
+                document.getElementById('clan-name-display').textContent = clan.name;
+            }
+        }
+
+        function editClanLevel() {
+            const clan = getCurrentClan();
+            const newLevel = prompt('Введите новый уровень базы (1-10):', clan.status.level);
+            const level = parseInt(newLevel);
+            if (!isNaN(level) && level >= 1 && level <= 10) {
+                clan.status.level = level;
+                updateClan(clan);
+                document.getElementById('clan-level-display').textContent = `LVL ${level}`;
+            }
+        }
+
+        function editClanTreasury() {
+            const clan = getCurrentClan();
+            const current = clan.status.treasury.toLocaleString('ru-RU');
+            const newTreasury = prompt('Введите новую сумму казны (в рублях):', current);
+            const treasury = parseInt(newTreasury.replace(/\s/g, ''));
+            if (!isNaN(treasury) && treasury >= 0) {
+                clan.status.treasury = treasury;
+                updateClan(clan);
+                document.getElementById('clan-treasury-display').textContent = `${treasury.toLocaleString('ru-RU')} ₽`;
+            }
+        }
+
+        function editMaxMembers() {
+            const clan = getCurrentClan();
+            const newMax = prompt('Введите максимальное количество участников:', clan.status.maxMembers);
+            const max = parseInt(newMax);
+            if (!isNaN(max) && max >= clan.members.length && max <= 100) {
+                clan.status.maxMembers = max;
+                updateClan(clan);
+                document.getElementById('active-members-count').textContent = `${clan.members.length}/${max}`;
+            }
+        }
+
+
+
+        
+        // Управление участниками
+        function loadMembersList() {
+            const members = getClanMembers();
+            const container = document.getElementById('members-list');
+            container.innerHTML = '';
+            
+            if (members.length === 0) {
+                container.innerHTML = '<p class="text-zinc-500 text-center">Участников пока нет</p>';
+                return;
+            }
+            
+            // Сортируем по званию
+            members.sort((a, b) => rankOrder.indexOf(a.role) - rankOrder.indexOf(b.role));
+
+            members.forEach(member => {
+                const memberDiv = document.createElement('div');
+                memberDiv.className = 'bg-zinc-900 border border-zinc-800 rounded-lg p-4';
+                const roleBadgeClass = `role-badge role-${RANK_NAME_TO_KEY[member.role] || 'private'}`;
+                memberDiv.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <div class="font-bold text-white">${member.username}</div>
+                            <span class="${roleBadgeClass}">${getRankEmoji(member.role)} ${member.role}</span>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(memberDiv);
+            });
+        }
+
+        // Общий хелпер смены звания через бота (источник истины)
+
+
+
+        // Активность
+        // ====== АКТИВНОСТЬ: помесячные листы + день/месяц ======
+        const Activity = { view: 'month', month: null, day: null };
+        const _MONTHS_RU = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+        function _monthKey(d) { return d.slice(0, 7); }
+        function _monthLabel(key) { const [y, m] = key.split('-'); return `${_MONTHS_RU[parseInt(m) - 1]} ${y}`; }
+
+        function loadActivityData() {
+            const ad = JSON.parse(Store.getItem('sc_activity_data') || '{"dates":[],"members":[]}');
+            const months = new Set(ad.dates.map(_monthKey));
+            months.add(new Date().toISOString().slice(0, 7));
+            const sorted = Array.from(months).sort();
+            if (!Activity.month || !months.has(Activity.month)) Activity.month = sorted[sorted.length - 1];
+            const mEl = document.getElementById('activity-months');
+            if (mEl) mEl.innerHTML = sorted.map(k =>
+                `<button onclick="selectActivityMonth('${k}')" class="px-3 py-1.5 rounded text-xs font-medium ${k === Activity.month ? 'bg-orange-600 text-black' : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'}">${_monthLabel(k)}</button>`).join('');
+            const bm = document.getElementById('actview-month'), bd = document.getElementById('actview-day');
+            if (bm && bd) {
+                bm.className = 'px-3 py-1.5 text-xs font-medium ' + (Activity.view === 'month' ? 'bg-orange-600 text-black' : 'bg-zinc-800 text-zinc-300');
+                bd.className = 'px-3 py-1.5 text-xs font-medium ' + (Activity.view === 'day' ? 'bg-orange-600 text-black' : 'bg-zinc-800 text-zinc-300');
+            }
+            if (Activity.view === 'day') renderActivityDay(); else renderActivityMonth(ad);
+        }
+
+        function selectActivityMonth(key) { Activity.month = key; Activity.view = 'month'; loadActivityData(); }
+        function setActivityView(v) {
+            Activity.view = v;
+            if (v === 'day' && !Activity.day) {
+                const ad = JSON.parse(Store.getItem('sc_activity_data') || '{"dates":[]}');
+                const inMonth = ad.dates.filter(d => _monthKey(d) === Activity.month).sort();
+                Activity.day = inMonth.length ? inMonth[inMonth.length - 1] : new Date().toISOString().slice(0, 10);
+            }
+            loadActivityData();
+        }
+        function openActivityDay(date) { Activity.day = date; Activity.view = 'day'; loadActivityData(); }
+
+        function renderActivityMonth(ad) {
+            const view = document.getElementById('activity-view');
+            const dates = ad.dates.filter(d => _monthKey(d) === Activity.month).sort();
+            const mgmt = canEdit();
+            if (dates.length === 0) {
+                view.innerHTML = `<div class="bg-zinc-900 border border-zinc-800 rounded-lg p-8 text-center text-zinc-500">Нет дней КВ за ${_monthLabel(Activity.month)}.${mgmt ? ' Добавьте кнопкой «+ День КВ».' : ''}</div>`;
+                return;
+            }
+            const members = ad.members.slice().sort((a, b) =>
+                (rankOrder.indexOf(a.rank) - rankOrder.indexOf(b.rank)) || a.name.localeCompare(b.name));
+            let head = `<th class="p-2 w-44 sticky left-0 z-10 bg-zinc-950 border-r-2 border-zinc-700 text-primary text-left">Позывной</th>
+                        <th class="p-2 w-14 sticky left-44 z-10 bg-zinc-950 border-r-2 border-zinc-700 text-primary">Ср.%</th>`;
+            dates.forEach(d => { head += `<th class="p-2 text-xs font-medium text-primary cursor-pointer hover:text-white" title="Открыть день по этапам" onclick="openActivityDay('${d}')">${fmtDate(d)} ▸</th>`; });
+            let body = '';
+            members.forEach(m => {
+                let pres = 0, tot = 0;
+                dates.forEach(d => { const s = m.records ? m.records[d] : undefined; if (s !== undefined) { tot++; if (s === 1) pres++; } });
+                const avg = tot ? Math.round(pres / tot * 100) : 0;
+                const ac = avg >= 70 ? 'text-green-400' : (avg >= 40 ? 'text-yellow-400' : 'text-red-400');
+                let row = `<td class="p-2 font-medium text-white sticky left-0 z-10 bg-zinc-900 border-r border-zinc-700 text-left"><div>${m.name}</div><div class="text-xs text-zinc-500">${getRankEmoji(m.rank)} ${m.rank}</div></td>
+                           <td class="p-2 font-bold sticky left-44 z-10 bg-zinc-900 border-r border-zinc-700 ${ac}">${avg}%</td>`;
+                dates.forEach(d => {
+                    const s = m.records ? m.records[d] : undefined;
+                    let c = '·', t = 'Нет данных';
+                    if (s === 1) { c = '✔'; t = 'Присутствовал'; } else if (s === 0) { c = '❌'; t = 'Отсутствовал'; } else if (s === 2) { c = '🚩'; t = 'Уважительно'; }
+                    row += `<td class="p-2 text-center ${mgmt ? 'cursor-pointer hover:bg-zinc-800' : ''}" title="${t} (${fmtDate(d)})" ${mgmt ? `onclick="toggleCell(${m.id},'${d}')"` : ''}>${c}</td>`;
+                });
+                body += `<tr class="hover:bg-zinc-800/40">${row}</tr>`;
+            });
+            view.innerHTML = `<div class="bg-zinc-900 border border-zinc-800 rounded-lg overflow-x-auto"><table class="w-full text-sm text-zinc-300 border-collapse min-w-max"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>
+                <p class="text-xs text-zinc-500 mt-2">Клик по дате — детальный отчёт по этапам.${mgmt ? ' Клик по ячейке — отметить присутствие (✔ → ❌ → 🚩 → пусто).' : ''}</p>`;
+        }
+
+        function toggleCell(memberId, date) {
+            const ad = JSON.parse(Store.getItem('sc_activity_data'));
+            const m = ad.members.find(x => x.id === memberId);
+            const cur = m && m.records ? m.records[date] : undefined;
+            let next; if (cur === undefined) next = 1; else if (cur === 1) next = 0; else if (cur === 0) next = 2; else next = null;
+            Api.post('/api/attendance', { member_id: memberId, date, status: next }).then(() => refreshCoreAndRender()).catch(() => {});
+        }
+
+        function _fmtDur(sec) { sec = sec || 0; const h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60); return h ? `${h}ч ${m}м` : (m ? `${m}м` : '—'); }
+        async function renderActivityDay() {
+            const view = document.getElementById('activity-view');
+            const date = Activity.day;
+            view.innerHTML = `<div class="text-zinc-500 text-sm">Загрузка…</div>`;
+            let rep;
+            try { rep = await Api.get('/api/kv/day?date=' + encodeURIComponent(date)); }
+            catch (e) { view.innerHTML = `<div class="text-red-400 text-sm">Не удалось загрузить день.</div>`; return; }
+            const stages = rep.stages || [];
+            const badge = s => s === 'present' ? '<span class="text-green-400">✅ был</span>' : (s === 'excused' ? '<span class="text-yellow-400">🚩 У/П</span>' : '<span class="text-red-400">❌ не был</span>');
+            const stHead = stages.map((s, i) => `<th class="p-2 text-xs text-primary">Этап ${i + 1}<br>${s.start}–${s.end}</th>`).join('');
+            const rows = (rep.members || []).map(m => {
+                const cells = (m.stages || []).map(v => `<td class="p-2 text-center">${m.status === 'excused' ? '🚩' : (v ? '✅' : '☐')}</td>`).join('');
+                return `<tr class="hover:bg-zinc-800/40 ${m.status === 'absent' ? 'opacity-60' : ''}">
+                    <td class="p-2 text-left font-medium text-white sticky left-0 bg-zinc-900 border-r border-zinc-700">${m.callsign}</td>
+                    <td class="p-2 text-xs text-zinc-400">${getRankEmoji(m.rank_name)} ${m.rank_name}</td>
+                    <td class="p-2 text-center text-xs">${badge(m.status)}</td>
+                    <td class="p-2 text-center text-xs">${m.entry}</td>
+                    <td class="p-2 text-center text-xs">${m.exit}</td>
+                    <td class="p-2 text-xs text-zinc-400">${(m.sessions || []).join(', ') || '—'}</td>
+                    <td class="p-2 text-center text-xs font-mono">${_fmtDur(m.total_seconds)}</td>${cells}</tr>`;
+            }).join('');
+            const dates = (JSON.parse(Store.getItem('sc_activity_data') || '{"dates":[]}').dates || []).filter(d => _monthKey(d) === Activity.month).sort();
+            const picker = dates.map(d => `<option value="${d}" ${d === date ? 'selected' : ''}>${fmtDate(d)}</option>`).join('');
+            view.innerHTML = `<div class="flex flex-wrap items-center gap-3 mb-3">
+                    <button onclick="setActivityView('month')" class="text-xs text-orange-400 hover:text-orange-300">← к месяцу</button>
+                    <select onchange="openActivityDay(this.value)" class="bg-zinc-950 border border-zinc-700 rounded px-3 py-1.5 text-sm text-white">${picker || `<option>${fmtDate(date)}</option>`}</select>
+                    <span class="text-sm text-zinc-400">${rep.event || 'Нет КВ по расписанию'} · ${fmtDate(date)}${rep.cancelled ? ' · <span class="text-red-400">отменено</span>' : ''}</span>
+                </div>
+                <div class="bg-zinc-900 border border-zinc-800 rounded-lg overflow-x-auto"><table class="w-full text-sm text-zinc-300 border-collapse min-w-max">
+                    <thead><tr><th class="p-2 text-left text-primary sticky left-0 bg-zinc-950 border-r border-zinc-700">Позывной</th>
+                        <th class="p-2 text-primary">Звание</th><th class="p-2 text-primary">Статус</th><th class="p-2 text-primary">Вход</th><th class="p-2 text-primary">Выход</th>
+                        <th class="p-2 text-primary">Сессии</th><th class="p-2 text-primary">&Sigma; время</th>${stHead}</tr></thead>
+                    <tbody>${rows || '<tr><td class="p-4 text-zinc-500" colspan="20">Нет данных за день</td></tr>'}</tbody></table></div>`;
+        }
+
+        function getRankEmoji(rank) {
+            return rankBadge(rank);
+        }
+
+
+        async function addActivityDate() {
+            const input = prompt('Введите дату (ДД.ММ, ДД.ММ.ГГГГ или ГГГГ-ММ-ДД):',
+                new Date().toLocaleDateString('ru-RU'));
+            if (!input) return;
+            const date = normalizeDateInput(input);
+            if (!date) { alert('Неверный формат даты'); return; }
+            try {
+                await Api.post('/api/dates', { date });
+                await refreshCoreAndRender();
+            } catch (e) {}
+        }
+
+        function showRemoveDateModal() {
+            const activityData = JSON.parse(Store.getItem('sc_activity_data'));
+            if (activityData.dates.length === 0) {
+                alert('Нет дат для удаления');
+                return;
+            }
+            
+            const container = document.getElementById('date-list-container');
+            container.innerHTML = '';
+            
+            activityData.dates.forEach(date => {
+                const dateDiv = document.createElement('div');
+                dateDiv.className = 'flex justify-between items-center p-2 bg-zinc-800 rounded hover:bg-zinc-700';
+                dateDiv.innerHTML = `
+                    <span>${fmtDate(date)}</span>
+                    <button onclick="removeSpecificDate('${date}')" class="text-red-400 hover:text-red-300 text-xs">
+                        Удалить
+                    </button>
+                `;
+                container.appendChild(dateDiv);
+            });
+            
+            document.getElementById('remove-date-modal').classList.add('active');
+        }
+
+        function closeRemoveDateModal() {
+            document.getElementById('remove-date-modal').classList.remove('active');
+        }
+
+        async function removeSpecificDate(date) {
+            if (!confirm(`Удалить дату ${fmtDate(date)}? Все данные за эту дату будут удалены.`)) return;
+            try {
+                await Api.del('/api/dates/' + encodeURIComponent(date));
+                await refreshCoreAndRender();
+                closeRemoveDateModal();
+            } catch (e) {}
+        }
+
+
+
+
+        // Прямое назначение звания по имени (из модалки «Назначить роль»)
+
+
+
+        // Ростер приходит с сервера (бот — источник истины); локальная
+        // синхронизация участников больше не нужна.
+
+        // Назначение ролей из активности
+
+
+
+        // Перемещение элементов
+
+
+
+
+
+        // Таблицы полезностей
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+
+        // Wiki
+
+
+
+        // Сборки снаряжения
+        let tempArtifacts = [];
+        
+        
+        
+        
+        
+        
+
+        // Галерея
+        
+        
+
+        // Календарь
+        function loadCalendar() {
+            loadKvSchedule();
+        }
+
+        // Расписание КВ (автоматическое из бота) + отмена дня офицером+
+        async function loadKvSchedule() {
+            const weeklyEl = document.getElementById('kv-weekly');
+            const upEl = document.getElementById('kv-upcoming');
+            if (!weeklyEl || !upEl) return;
+            let data;
+            try { data = await Api.get('/api/kv?days=21'); }
+            catch (e) { return; }
+
+            const dayShort = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+            weeklyEl.innerHTML = (data.weekly || []).map(w => `
+                <div class="bg-zinc-950 border border-zinc-800 rounded-lg p-3 text-center">
+                    <div class="text-xs text-zinc-500">${dayShort[w.weekday]}</div>
+                    <div class="text-sm font-bold text-white mt-1">${w.name}</div>
+                    <div class="text-xs text-orange-400 mt-1">${w.start}–${w.end}</div>
+                </div>`).join('');
+
+            const mgmt = canEdit();
+            const monthNames = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+            const fmtFull = ds => {
+                const m = ds.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+                return m ? `${parseInt(m[3])} ${monthNames[parseInt(m[2]) - 1]}` : ds;
+            };
+            if (!data.events || data.events.length === 0) {
+                upEl.innerHTML = '<p class="text-xs text-zinc-500 italic">Ближайших боёв нет</p>';
+                return;
+            }
+            upEl.innerHTML = data.events.map(ev => {
+                const head = `${fmtFull(ev.date)} (${dayShort[ev.weekday]})`;
+                const btn = mgmt
+                    ? (ev.cancelled
+                        ? `<button onclick="restoreKv('${ev.date}')" class="text-green-400 hover:text-green-300 text-xs border border-green-900/50 rounded px-2 py-1">Вернуть</button>`
+                        : `<button onclick="cancelKv('${ev.date}','${ev.name.replace(/'/g, '')}')" class="text-red-400 hover:text-red-300 text-xs border border-red-900/50 rounded px-2 py-1">Отменить</button>`)
+                    : '';
+                return `
+                    <div class="flex justify-between items-center bg-zinc-950 border ${ev.cancelled ? 'border-red-900/50' : 'border-zinc-800'} rounded-lg p-3">
+                        <div>
+                            <div class="text-sm font-bold ${ev.cancelled ? 'text-zinc-500 line-through' : 'text-white'}">${ev.name}</div>
+                            <div class="text-xs text-zinc-500">${head} · ${ev.start}–${ev.end}</div>
+                            ${ev.cancelled ? `<div class="text-xs text-red-400 mt-1">Отменено${ev.reason ? ': ' + ev.reason : ''}</div>` : ''}
+                        </div>
+                        ${btn}
+                    </div>`;
+            }).join('');
+        }
+
+        async function cancelKv(date, name) {
+            const reason = prompt(`Отменить «${name}» на ${date}?\nУкажите причину (бот оповестит в Discord):`, '');
+            if (reason === null) return;
+            try { await Api.post('/api/kv/cancel', { date, reason }); await loadKvSchedule(); }
+            catch (e) {}
+        }
+
+        async function restoreKv(date) {
+            try { await Api.del('/api/kv/cancel/' + encodeURIComponent(date)); await loadKvSchedule(); }
+            catch (e) {}
+        }
+
+        
+        
+        
+        
+        
+        
+        
+        
+
+        // Тактическая доска
+        let canvas, ctx, bgCanvas, bgCtx;
+        let currentTool = 'brush';
+        let currentColor = '#f97316';
+        let lineWidth = 3;
+        let opacity = 1;
+        let isDrawing = false;
+        let lastX = 0, lastY = 0;
+        let viewport = { offset: { x: 0, y: 0 }, scale: 1 };
+        let history = [];
+        let currentHistoryIndex = -1;
+        let bgImage = null;
+        let selectedObject = null;
+        let iconSize = 30;
+        let textInput = '';
+        let currentMarkerChar = '📍';
+        let currentMarkerType = 'emoji'; // 'emoji' или 'image'
+        let currentMarkerImage = null;
+        let currentMarkerImageSrc = '';
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        // Вспомогательные функции для сохранения изображения
+        
+        
+        
+        
+        
+        
+
+        // Обработчик загрузки галереи
+
+        // Управление пользовательскими ролями
+        
+        
+        
+        
+
+        // Управление пользовательскими маркерами
+        
+        
+        
+        
+        
+
+        // ====== ОТРЯДЫ ======
+        function _rosterById() {
+            const map = {};
+            try { JSON.parse(Store.getItem('sc_activity_data')).members.forEach(m => { map[m.id] = m; }); } catch (e) {}
+            return map;
+        }
+        async function loadSquads() {
+            const el = document.getElementById('squads-list');
+            if (!el) return;
+            let squads = [];
+            try { squads = (await Api.get('/api/squads')).squads || []; } catch (e) { return; }
+            const rmap = _rosterById();
+            const mgmt = canEdit();
+            if (squads.length === 0) {
+                el.innerHTML = `<div class="text-zinc-500 text-sm col-span-full">Отрядов пока нет.${mgmt ? ' Создайте кнопкой «+ Отряд».' : ''}</div>`;
+                return;
+            }
+            el.innerHTML = squads.map(sq => {
+                const mem = (sq.members || []).map(id => {
+                    const m = rmap[id];
+                    return `<li class="flex items-center gap-2 text-sm text-zinc-300">${m ? getRankEmoji(m.rank) : '👤'} ${m ? m.name : ('#' + id)}</li>`;
+                }).join('') || '<li class="text-xs text-zinc-600">Пусто</li>';
+                const ctrls = mgmt ? `<div class="flex gap-2 mt-3">
+                    <button onclick="editSquadMembers(${sq.id})" class="flex-1 bg-zinc-800 hover:bg-zinc-700 text-white text-xs py-1.5 rounded">Состав</button>
+                    <button onclick="renameSquad(${sq.id})" class="bg-zinc-800 hover:bg-zinc-700 text-white text-xs px-3 py-1.5 rounded">✏</button>
+                    <button onclick="deleteSquad(${sq.id})" class="bg-red-900/30 text-red-400 text-xs px-3 py-1.5 rounded border border-red-900/50">✕</button>
+                </div>` : '';
+                return `<div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+                    <div class="flex justify-between items-center mb-2"><h3 class="font-bold text-white">${sq.name}</h3>
+                    <span class="text-xs text-zinc-500">${(sq.members || []).length}/5</span></div>
+                    <ul class="space-y-1">${mem}</ul>${ctrls}</div>`;
+            }).join('');
+        }
+        async function createSquad() {
+            const name = prompt('Название отряда:');
+            if (!name || !name.trim()) return;
+            try { await Api.post('/api/squads', { name: name.trim(), members: [] }); await loadSquads(); } catch (e) {}
+        }
+        async function renameSquad(id) {
+            const name = prompt('Новое название отряда:');
+            if (!name || !name.trim()) return;
+            try { await Api.patch('/api/squads/' + id, { name: name.trim() }); await loadSquads(); } catch (e) {}
+        }
+        async function deleteSquad(id) {
+            if (!confirm('Удалить отряд?')) return;
+            try { await Api.del('/api/squads/' + id); await loadSquads(); } catch (e) {}
+        }
+        async function editSquadMembers(id) {
+            let squads = [];
+            try { squads = (await Api.get('/api/squads')).squads || []; } catch (e) { return; }
+            const sq = squads.find(s => s.id === id);
+            if (!sq) return;
+            const ad = JSON.parse(Store.getItem('sc_activity_data') || '{"members":[]}');
+            const chosen = new Set(sq.members || []);
+            // Кто уже в другом отряде (игрок может быть только в одном)
+            const inOther = {};
+            squads.forEach(s => { if (s.id !== id) (s.members || []).forEach(mid => { inOther[mid] = s.name; }); });
+            let m = document.getElementById('squad-picker');
+            if (!m) { m = document.createElement('div'); m.id = 'squad-picker'; m.className = 'modal'; document.body.appendChild(m); }
+            const list = ad.members.slice().sort((a, b) => (rankOrder.indexOf(a.rank) - rankOrder.indexOf(b.rank)) || a.name.localeCompare(b.name)).map(mm => {
+                const busy = !!inOther[mm.id];
+                const note = busy ? ` <span class="text-xs text-zinc-500">(в «${inOther[mm.id]}»)</span>` : '';
+                return `<label class="flex items-center gap-2 p-2 rounded ${busy ? 'opacity-50 cursor-not-allowed' : 'hover:bg-zinc-800 cursor-pointer'}">
+                    <input type="checkbox" value="${mm.id}" ${chosen.has(mm.id) ? 'checked' : ''} ${busy ? 'disabled' : ''} class="sqm accent-orange-500">
+                    <span>${getRankEmoji(mm.rank)} ${mm.name}${note}</span></label>`;
+            }).join('');
+            m.innerHTML = `<div class="modal-content bg-zinc-900 border border-zinc-800 rounded-xl p-6 max-w-md w-full mx-4 max-h-[80vh] overflow-y-auto">
+                <div class="flex justify-between items-center mb-4"><h3 class="text-xl font-bold text-white">Состав: ${sq.name}</h3>
+                <button onclick="document.getElementById('squad-picker').classList.remove('active')" class="text-zinc-500 hover:text-white text-2xl">✕</button></div>
+                <p class="text-xs text-zinc-500 mb-3">Максимум 5 бойцов.</p>
+                <div class="space-y-1">${list || '<div class="text-zinc-600 text-sm">Нет участников</div>'}</div>
+                <button onclick="saveSquadMembers(${id})" class="w-full mt-4 bg-orange-600 hover:bg-orange-700 text-black font-bold py-2 rounded">Сохранить</button></div>`;
+            m.classList.add('active');
+        }
+        async function saveSquadMembers(id) {
+            const ids = Array.from(document.querySelectorAll('#squad-picker .sqm:checked')).map(c => parseInt(c.value));
+            if (ids.length > 5) { showToastMsg('Максимум 5 бойцов в отряде'); return; }
+            try {
+                await Api.patch('/api/squads/' + id, { members: ids });
+                const m = document.getElementById('squad-picker');
+                if (m) m.classList.remove('active');
+                await loadSquads();
+            } catch (e) {}
+        }
+
+
+        // Вспомогательные функции
+        async function logout() {
+            try { await Api.post('/api/logout'); } catch (e) {}
+            if (_corePollTimer) { clearInterval(_corePollTimer); _corePollTimer = null; }
+            Store._cache = {};
+            showCodeLogin('Вы вышли. Для входа получите код командой !site');
+        }
+
+        // Инициализация при загрузке: вход/загрузка с сервера (бот — источник истины).
+        // Запускаем устойчиво — даже если DOMContentLoaded уже прошёл.
+        function _startApp() { try { bootApp(); } catch (e) { console.error('bootApp error', e); } }
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', _startApp);
+        } else {
+            _startApp();
+        }
+    </script>
+</body>
+</html>
